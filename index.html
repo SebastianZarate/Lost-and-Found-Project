@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Organizador de Objetos Perdidos</title>
+  <meta name="description" content="Registra y localiza rápidamente dónde guardaste tus objetos personales." />
+
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
+
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__brand">
+      <svg class="topbar__logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>
+      <h1>Organizador de Objetos Perdidos</h1>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="buscador" aria-label="Buscar objetos">
+      <label class="sr-only" for="input-buscar">Buscar por nombre, categoría o ubicación</label>
+      <input id="input-buscar" class="input input--search" type="search"
+             placeholder="¿Qué estás buscando? Ej: pasaporte" autocomplete="off" />
+      <div id="chips-categorias" class="chips" role="group" aria-label="Filtrar por categoría"></div>
+    </section>
+
+    <p id="contador" class="contador" aria-live="polite"></p>
+
+    <section id="lista-objetos" class="grid" aria-label="Objetos registrados"></section>
+
+    <div id="estado-vacio" class="vacio" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>
+      <h2 id="vacio-titulo">Aún no has registrado objetos</h2>
+      <p id="vacio-texto">Guarda el primero y siempre sabrás dónde está.</p>
+      <button id="btn-vacio-nuevo" class="btn btn--primary" type="button">Registrar objeto</button>
+    </div>
+  </main>
+
+  <button id="btn-nuevo" class="fab" type="button" aria-label="Registrar objeto nuevo">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></svg>
+    <span>Registrar</span>
+  </button>
+
+  <!-- Diálogo: crear / editar objeto -->
+  <dialog id="dialogo-formulario" class="dialogo" aria-labelledby="form-titulo">
+    <form id="form-objeto" class="form" novalidate>
+      <h2 id="form-titulo">Registrar objeto</h2>
+
+      <label class="campo">
+        <span>Nombre del objeto</span>
+        <input id="f-nombre" class="input" name="nombre" type="text" maxlength="80" required placeholder="Pasaporte" />
+        <small class="error" data-error-para="nombre"></small>
+      </label>
+
+      <label class="campo">
+        <span>Categoría</span>
+        <select id="f-categoria" class="input" name="categoria" required></select>
+      </label>
+
+      <label class="campo">
+        <span>¿Dónde lo guardaste?</span>
+        <input id="f-ubicacion" class="input" name="ubicacion" type="text" maxlength="120" required placeholder="Cajón del escritorio, sótano" />
+        <small class="error" data-error-para="ubicacion"></small>
+      </label>
+
+      <label class="campo">
+        <span>Notas (opcional)</span>
+        <textarea id="f-notas" class="input" name="notas" rows="3" maxlength="500" placeholder="Está dentro de una carpeta azul"></textarea>
+      </label>
+
+      <div class="campo">
+        <span>Fotografía (opcional)</span>
+        <div class="foto">
+          <img id="f-foto-preview" class="foto__preview" alt="Vista previa de la fotografía" hidden />
+          <div class="foto__acciones">
+            <label class="btn btn--ghost" for="f-foto">Tomar o elegir foto</label>
+            <input id="f-foto" class="sr-only" type="file" accept="image/*" capture="environment" />
+            <button id="f-foto-quitar" class="btn btn--text" type="button" hidden>Quitar foto</button>
+          </div>
+        </div>
+      </div>
+
+      <label class="campo">
+        <span>Recordatorio (opcional)</span>
+        <input id="f-recordatorio" class="input" name="recordatorio" type="datetime-local" />
+        <small class="ayuda">Te avisaremos para que confirmes dónde está el objeto.</small>
+      </label>
+
+      <div class="form__acciones">
+        <button id="form-cancelar" class="btn btn--ghost" type="button">Cancelar</button>
+        <button id="form-guardar" class="btn btn--primary" type="submit">Guardar objeto</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Diálogo: detalle del objeto -->
+  <dialog id="dialogo-detalle" class="dialogo" aria-labelledby="det-nombre">
+    <article class="detalle">
+      <img id="det-foto" class="detalle__foto" alt="" hidden />
+      <p id="det-categoria" class="detalle__categoria"></p>
+      <h2 id="det-nombre"></h2>
+
+      <div class="ubicacion-actual">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>
+        <div>
+          <p class="ubicacion-actual__etiqueta">Última ubicación registrada</p>
+          <p id="det-ubicacion" class="ubicacion-actual__valor"></p>
+          <p id="det-fecha" class="ubicacion-actual__fecha"></p>
+        </div>
+      </div>
+
+      <p id="det-notas" class="detalle__notas" hidden></p>
+      <p id="det-recordatorio" class="detalle__recordatorio" hidden></p>
+
+      <form id="form-mover" class="mover">
+        <label for="input-mover">Lo cambié de lugar</label>
+        <div class="mover__fila">
+          <input id="input-mover" class="input" type="text" maxlength="120" placeholder="Nueva ubicación" required />
+          <button class="btn btn--primary" type="submit">Actualizar ubicación</button>
+        </div>
+      </form>
+
+      <section aria-labelledby="hist-titulo">
+        <h3 id="hist-titulo">Historial de ubicaciones</h3>
+        <ol id="det-historial" class="historial"></ol>
+      </section>
+
+      <div class="detalle__acciones">
+        <button id="det-eliminar" class="btn btn--danger" type="button">Eliminar</button>
+        <button id="det-editar" class="btn btn--ghost" type="button">Editar</button>
+        <button id="det-cerrar" class="btn btn--primary" type="button">Cerrar</button>
+      </div>
+    </article>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

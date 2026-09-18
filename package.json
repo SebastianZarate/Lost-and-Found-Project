@@ -1,0 +1,13 @@
+{
+  "name": "organizador-objetos-perdidos",
+  "version": "1.0.0",
+  "description": "Aplicación web para registrar y localizar objetos personales.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node js/servidor.js",
+    "start:python": "python -m http.server 5500"
+  },
+  "keywords": ["indexeddb", "objetos perdidos"],
+  "license": "MIT"
+}
