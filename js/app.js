@@ -14,6 +14,7 @@ import {
 import { el, formatearFecha, tiempoRelativo, aValorDatetimeLocal } from './utils.js';
 import { redimensionarImagen } from './imagen.js';
 import { revisarRecordatorios } from './notificaciones.js';
+import { registrarServiceWorker } from './pwa.js';
 
 /* ---------------------------- Estado ---------------------------- */
 const estado = {
@@ -327,6 +328,7 @@ function conectarEventos() {
 }
 
 async function iniciar() {
+  registrarServiceWorker();
   poblarCategorias();
   renderChips();
   conectarEventos();
