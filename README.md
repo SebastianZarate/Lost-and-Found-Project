@@ -7,6 +7,8 @@ Integrantes: Juan Pablo Muñoz · Juan Sebastian Zarate · Gabriel Niño
 
 Tecnologías: HTML5, CSS3 y JavaScript (módulos ES) puros, sin frameworks ni paso de compilación.
 
+La aplicación incluye un Service Worker para practicar las estrategias de caché del Atlas 3D. No hay modelos `.glb` o `.gltf` todavía; los iconos del manifest son los assets binarios usados como ensayo.
+
 ---
 
 ## 1. Cómo ejecutarlo
@@ -34,10 +36,13 @@ python -m http.server 5500
 ```
 organizador-objetos-perdidos/
 ├── index.html               Estructura de la interfaz (diálogos, formulario, lista)
+├── manifest.json             Manifest de la aplicación
+├── sw.js                     Caché versionada y estrategias de red
 ├── css/
 │   └── styles.css           Estilos responsive
 ├── js/
 │   ├── app.js               Controlador: estado, render y eventos
+│   ├── pwa.js                Registro del Service Worker
 │   ├── db.js                IndexedDB: CRUD y búsqueda
 │   ├── notificaciones.js    Recordatorios dentro de la aplicación
 │   ├── imagen.js            Redimensiona fotos antes de guardarlas
@@ -76,7 +81,20 @@ Fuera del alcance V1 (según la propuesta): pagos, mensajería, inteligencia art
 
 Todas las rutas son relativas, por lo que funciona en subcarpetas.
 
-## 6. Documentación
+## 6. Caché del Atlas 3D
+
+El Service Worker usa la caché `atlas3d-v2`:
+
+- `install`: guarda `./`, `./index.html` y `./manifest.json` con `addAll()`.
+- `install`: descarga los tres iconos y los guarda individualmente con `cache.put()`.
+- `activate`: elimina cachés anteriores cuyo nombre empiece por `atlas3d-`.
+- Iconos y futuros modelos 3D en `/icons/`: **Cache First**.
+- Futuras rutas `/api/`: **Network First**.
+- Resto del shell: **Stale-While-Revalidate**.
+
+Para comprobarlo, abre DevTools → **Application → Cache Storage** y verifica `atlas3d-v2` con seis entradas. Las estrategias de caché están implementadas, pero el funcionamiento offline completo de futuros bundles generados dinámicamente requiere conocer o precachear esas rutas.
+
+## 7. Documentación
 
 - [`docs/01-analisis-documentos.md`](docs/01-analisis-documentos.md): qué piden los PDFs y cómo se cubrió
 - [`docs/02-arquitectura.md`](docs/02-arquitectura.md): diagramas y decisiones técnicas

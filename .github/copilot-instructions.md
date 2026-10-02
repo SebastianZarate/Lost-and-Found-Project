@@ -14,6 +14,7 @@
 - Identificadores en español, camelCase (`crearObjeto`, `estado`, `ubicacion`).
 - Para el DOM usar el helper `el()` de `js/utils.js` o `textContent`. **Nunca** `innerHTML` con datos del usuario.
 - Cada archivo tiene una responsabilidad: `app.js` (UI/estado), `db.js` (datos), `notificaciones.js`, `imagen.js`, `utils.js`, `constants.js`.
+- `sw.js` implementa la caché versionada del Atlas 3D y `js/pwa.js` registra el Service Worker.
 - Mantener funciones pequeñas y comentadas con el "por qué", no el "qué".
 - Accesibilidad: `label` en campos, foco visible, `aria-live` para avisos, respetar `prefers-reduced-motion`.
 
