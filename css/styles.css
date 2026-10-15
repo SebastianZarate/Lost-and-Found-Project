@@ -49,6 +49,13 @@ h1, h2, h3, p { margin: 0; }
 [hidden] { display: none !important; }
 
 /* ---------- Barra superior ---------- */
+.offline-banner {
+  background: var(--rojo);
+  color: #fff;
+  text-align: center;
+  padding: 0.5rem;
+  font-weight: bold;
+}
 .topbar {
   position: sticky; top: 0; z-index: 10;
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
