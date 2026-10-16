@@ -46,6 +46,7 @@ organizador-objetos-perdidos/
 │   ├── db.js                IndexedDB: CRUD y búsqueda
 │   ├── notificaciones.js    Recordatorios dentro de la aplicación
 │   ├── imagen.js            Redimensiona fotos antes de guardarlas
+│   ├── dispositivo.js       Cámara y geolocalización opcionales
 │   ├── utils.js             Helpers (crear DOM, fechas, normalizar texto)
 │   └── constants.js         Categorías y constantes
 ├── icons/                   Favicon de la aplicación
@@ -70,18 +71,33 @@ organizador-objetos-perdidos/
 
 Fuera del alcance V1 (según la propuesta): pagos, mensajería, inteligencia artificial y APIs externas complejas.
 
-## 4. Cómo probar la aplicación
+## 4. APIs del dispositivo
+
+Las APIs se solicitan únicamente después de una acción explícita y la aplicación
+conserva sus funciones principales si el permiso se rechaza o el dispositivo no
+cuenta con el hardware:
+
+- **Cámara:** `Abrir cámara` usa `getUserMedia`, captura un fotograma y detiene
+  todas las pistas al cerrar, cambiar de pestaña o salir de la página. Elegir una
+  imagen desde el dispositivo continúa disponible como alternativa.
+- **Ubicación:** `Usar mi ubicación actual` usa `getCurrentPosition` y registra
+  latitud, longitud y precisión en el campo de ubicación para que el usuario
+  pueda editar el texto antes de guardar.
+No se solicita micrófono porque la aplicación no tiene una función de audio que
+lo necesite.
+
+## 5. Cómo probar la aplicación
 
 1. Abre la app en Chrome o Edge.
 2. Registra un objeto y verifica su tarjeta y detalle.
 3. Prueba búsqueda, filtros, edición, cambio de ubicación y eliminación.
 4. Revisa **Storage › IndexedDB**: base `organizador-objetos-db` con el almacén `objetos`.
 
-## 5. Publicarlo (opcional)
+## 6. Publicarlo (opcional)
 
 Todas las rutas son relativas, por lo que funciona en subcarpetas.
 
-## 6. Caché del Atlas 3D
+## 7. Caché del Atlas 3D
 
 El Service Worker usa la caché `atlas3d-v2`:
 
@@ -94,7 +110,7 @@ El Service Worker usa la caché `atlas3d-v2`:
 
 Para comprobarlo, abre DevTools → **Application → Cache Storage** y verifica `atlas3d-v2` con seis entradas. Las estrategias de caché están implementadas, pero el funcionamiento offline completo de futuros bundles generados dinámicamente requiere conocer o precachear esas rutas.
 
-## 7. Documentación
+## 8. Documentación
 
 - [`docs/01-analisis-documentos.md`](docs/01-analisis-documentos.md): qué piden los PDFs y cómo se cubrió
 - [`docs/02-arquitectura.md`](docs/02-arquitectura.md): diagramas y decisiones técnicas

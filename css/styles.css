@@ -183,6 +183,10 @@ textarea.input { resize: vertical; }
 .foto__preview { width: 96px; height: 96px; object-fit: cover; border-radius: var(--radio-sm); border: 1px solid var(--linea); }
 .foto__acciones { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 
+.dialogo--camara { width: min(620px, calc(100% - 1.5rem)); }
+.camara { padding: 1.25rem; display: grid; gap: 1rem; }
+.camara__video { width: 100%; max-height: 60dvh; object-fit: cover; border-radius: var(--radio); background: #111827; }
+
 .form__acciones, .detalle__acciones { display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; }
 .detalle__acciones .btn--danger { margin-right: auto; }
 

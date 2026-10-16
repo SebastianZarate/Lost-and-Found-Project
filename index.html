@@ -84,6 +84,7 @@
           <div class="foto__acciones">
             <label class="btn btn--ghost" for="f-foto">Tomar o elegir foto</label>
             <input id="f-foto" class="sr-only" type="file" accept="image/*" capture="environment" />
+            <button id="f-foto-camara" class="btn btn--ghost" type="button">Abrir cámara</button>
             <button id="f-foto-quitar" class="btn btn--text" type="button" hidden>Quitar foto</button>
           </div>
         </div>
@@ -95,11 +96,29 @@
         <small class="ayuda">Te avisaremos para que confirmes dónde está el objeto.</small>
       </label>
 
+      <div class="campo">
+        <span>Ubicación del dispositivo (opcional)</span>
+        <button id="f-ubicacion-actual" class="btn btn--ghost" type="button">Usar mi ubicación actual</button>
+        <small id="f-ubicacion-ayuda" class="ayuda">Solo se solicita cuando pulsas el botón.</small>
+      </div>
+
       <div class="form__acciones">
         <button id="form-cancelar" class="btn btn--ghost" type="button">Cancelar</button>
         <button id="form-guardar" class="btn btn--primary" type="submit">Guardar objeto</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="dialogo-camara" class="dialogo dialogo--camara" aria-labelledby="camara-titulo">
+    <section class="camara">
+      <h2 id="camara-titulo">Tomar fotografía</h2>
+      <video id="camara-video" class="camara__video" autoplay playsinline muted></video>
+      <p id="camara-ayuda" class="ayuda">La cámara se apagará al cerrar este diálogo.</p>
+      <div class="form__acciones">
+        <button id="camara-cancelar" class="btn btn--ghost" type="button">Cancelar</button>
+        <button id="camara-capturar" class="btn btn--primary" type="button">Capturar foto</button>
+      </div>
+    </section>
   </dialog>
 
   <!-- Diálogo: detalle del objeto -->
@@ -144,6 +163,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=20261016-3"></script>
 </body>
 </html>

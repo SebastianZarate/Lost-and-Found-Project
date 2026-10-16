@@ -15,6 +15,10 @@ import { el, formatearFecha, tiempoRelativo, aValorDatetimeLocal } from './utils
 import { redimensionarImagen } from './imagen.js';
 import { revisarRecordatorios } from './notificaciones.js';
 import { registrarServiceWorker } from './pwa.js';
+import {
+  abrirCamara, detenerCamara, capturarFotograma, obtenerUbicacion,
+  describirErrorDispositivo,
+} from './dispositivo.js';
 
 /* ---------------------------- Estado ---------------------------- */
 const estado = {
@@ -39,7 +43,12 @@ const ui = {
   fNombre: $('f-nombre'), fCategoria: $('f-categoria'), fUbicacion: $('f-ubicacion'),
   fNotas: $('f-notas'), fFoto: $('f-foto'), fFotoPreview: $('f-foto-preview'),
   fFotoQuitar: $('f-foto-quitar'), fRecordatorio: $('f-recordatorio'),
+  fFotoCamara: $('f-foto-camara'), fUbicacionActual: $('f-ubicacion-actual'),
+  fUbicacionAyuda: $('f-ubicacion-ayuda'),
   formCancelar: $('form-cancelar'), formGuardar: $('form-guardar'),
+  dlgCamara: $('dialogo-camara'), camaraVideo: $('camara-video'),
+  camaraAyuda: $('camara-ayuda'), camaraCancelar: $('camara-cancelar'),
+  camaraCapturar: $('camara-capturar'),
   // detalle
   dlgDetalle: $('dialogo-detalle'), detFoto: $('det-foto'), detCategoria: $('det-categoria'),
   detNombre: $('det-nombre'), detUbicacion: $('det-ubicacion'), detFecha: $('det-fecha'),
@@ -47,6 +56,7 @@ const ui = {
   formMover: $('form-mover'), inputMover: $('input-mover'),
   detEliminar: $('det-eliminar'), detEditar: $('det-editar'), detCerrar: $('det-cerrar'),
 };
+let streamCamara = null;
 
 /* --------------------------- Utilidades UI --------------------------- */
 let temporizadorToast;
@@ -168,6 +178,7 @@ function abrirFormulario(objeto = null) {
   ui.fUbicacion.value = objeto?.ubicacion ?? '';
   ui.fNotas.value = objeto?.notas ?? '';
   ui.fRecordatorio.value = aValorDatetimeLocal(objeto?.recordatorio);
+  ui.fUbicacionAyuda.textContent = 'Solo se solicita cuando pulsas el botón.';
   mostrarFotoForm();
 
   ui.dlgDetalle.close();
@@ -227,6 +238,51 @@ async function alElegirFoto() {
   estado.fotoForm = await redimensionarImagen(archivo);
   ui.fFoto.value = '';
   mostrarFotoForm();
+}
+
+async function iniciarCamara() {
+  ui.camaraAyuda.textContent = 'Solicitando permiso de cámara...';
+  ui.dlgForm.close();
+  try {
+    streamCamara = await abrirCamara();
+    ui.camaraVideo.srcObject = streamCamara;
+    ui.camaraAyuda.textContent = 'Alinea el objeto y pulsa «Capturar foto».';
+    ui.dlgCamara.showModal();
+  } catch (error) {
+    if (!ui.dlgForm.open) ui.dlgForm.showModal();
+    avisar(describirErrorDispositivo(error, 'camara'));
+    ui.camaraAyuda.textContent = describirErrorDispositivo(error, 'camara');
+  }
+}
+
+function cerrarCamara() {
+  detenerCamara(streamCamara, ui.camaraVideo);
+  streamCamara = null;
+  if (ui.dlgCamara.open) ui.dlgCamara.close();
+}
+
+async function capturarFotoCamara() {
+  try {
+    estado.fotoForm = await redimensionarImagen(await capturarFotograma(ui.camaraVideo));
+    mostrarFotoForm();
+    cerrarCamara();
+  } catch (error) {
+    ui.camaraAyuda.textContent = error.message;
+  }
+}
+
+async function usarUbicacionActual() {
+  ui.fUbicacionActual.disabled = true;
+  ui.fUbicacionAyuda.textContent = 'Solicitando permiso de ubicación...';
+  try {
+    const { coords } = await obtenerUbicacion();
+    ui.fUbicacion.value = `Coordenadas: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)} (precisión ±${Math.round(coords.accuracy)} m)`;
+    ui.fUbicacionAyuda.textContent = 'Ubicación obtenida. Puedes editarla antes de guardar.';
+  } catch (error) {
+    ui.fUbicacionAyuda.textContent = describirErrorDispositivo(error, 'ubicacion');
+  } finally {
+    ui.fUbicacionActual.disabled = false;
+  }
 }
 
 /* ------------------------------ Detalle ------------------------------ */
@@ -313,8 +369,16 @@ function conectarEventos() {
   ui.form.addEventListener('submit', guardarFormulario);
   ui.formCancelar.addEventListener('click', () => ui.dlgForm.close());
   ui.fFoto.addEventListener('change', alElegirFoto);
+  ui.fFotoCamara.addEventListener('click', iniciarCamara);
   ui.fFotoQuitar.addEventListener('click', () => { estado.fotoForm = null; mostrarFotoForm(); });
-
+  ui.fUbicacionActual.addEventListener('click', usarUbicacionActual);
+  ui.camaraCancelar.addEventListener('click', cerrarCamara);
+  ui.camaraCapturar.addEventListener('click', capturarFotoCamara);
+  ui.dlgCamara.addEventListener('close', () => {
+    detenerCamara(streamCamara, ui.camaraVideo);
+    streamCamara = null;
+    if (!document.hidden && !ui.dlgForm.open) ui.dlgForm.showModal();
+  });
   ui.formMover.addEventListener('submit', moverDesdeDetalle);
   ui.detEliminar.addEventListener('click', eliminarDesdeDetalle);
   ui.detEditar.addEventListener('click', editarDesdeDetalle);
@@ -323,8 +387,13 @@ function conectarEventos() {
   ui.dlgDetalle.addEventListener('click', (e) => { if (e.target === ui.dlgDetalle) ui.dlgDetalle.close(); });
 
   document.addEventListener('visibilitychange', () => {
+    if (document.hidden && streamCamara) {
+      cerrarCamara();
+      avisar('La cámara se apagó al salir de la página.');
+    }
     if (!document.hidden) comprobarRecordatorios();
   });
+  window.addEventListener('pagehide', cerrarCamara);
 
   window.addEventListener('online', () => document.getElementById('indicador-conexion').hidden = true);
   window.addEventListener('offline', () => document.getElementById('indicador-conexion').hidden = false);
