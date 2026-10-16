@@ -13,7 +13,8 @@
  *   ubicacion: string,             // última ubicación registrada
  *   notas: string,
  *   foto: Blob | null,             // IndexedDB guarda Blobs directamente
- *   historial: [{ ubicacion, fecha }],
+ *   coordenadas: { latitud, longitud, precision } | null,
+ *   historial: [{ ubicacion, fecha, coordenadas? }],
  *   recordatorio: number | null,   // timestamp del aviso
  *   recordatorioNotificado: boolean,
  *   creadoEn: number,
@@ -24,7 +25,7 @@ import { normalizar } from './utils.js';
 import { TODAS } from './constants.js';
 
 const DB_NAME = 'organizador-objetos-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = 'objetos';
 
 let dbPromise = null;
@@ -37,13 +38,30 @@ export function abrirDB() {
     const peticion = indexedDB.open(DB_NAME, DB_VERSION);
 
     // Se ejecuta solo cuando la BD se crea o cambia DB_VERSION.
-    peticion.onupgradeneeded = () => {
+    peticion.onupgradeneeded = (evento) => {
       const db = peticion.result;
       if (!db.objectStoreNames.contains(STORE)) {
         const almacen = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
         almacen.createIndex('nombre', 'nombre');
         almacen.createIndex('categoria', 'categoria');
         almacen.createIndex('actualizadoEn', 'actualizadoEn');
+        return;
+      }
+
+      if (evento.oldVersion < 2) {
+        const almacen = peticion.transaction.objectStore(STORE);
+        almacen.openCursor().onsuccess = (cursorEvento) => {
+          const cursor = cursorEvento.target.result;
+          if (!cursor) return;
+          const objeto = cursor.value;
+          const coordenadas = objeto.coordenadas ?? null;
+          const historial = (objeto.historial ?? []).map((entrada) => ({
+            ...entrada,
+            coordenadas: entrada.coordenadas ?? null,
+          }));
+          cursor.update({ ...objeto, coordenadas, historial });
+          cursor.continue();
+        };
       }
     };
 
@@ -101,15 +119,18 @@ async function modificar(id, transformar) {
 /* ------------------------------ CRUD ------------------------------ */
 
 /** CREATE: registra un objeto nuevo. */
-export async function crearObjeto({ nombre, categoria, ubicacion, notas = '', foto = null, recordatorio = null }) {
+export async function crearObjeto({
+  nombre, categoria, ubicacion, notas = '', foto = null, recordatorio = null, coordenadas = null,
+}) {
   const ahora = Date.now();
   const objeto = {
     nombre: nombre.trim(),
     categoria,
     ubicacion: ubicacion.trim(),
+    coordenadas,
     notas: notas.trim(),
     foto,
-    historial: [{ ubicacion: ubicacion.trim(), fecha: ahora }],
+    historial: [{ ubicacion: ubicacion.trim(), fecha: ahora, coordenadas }],
     recordatorio,
     recordatorioNotificado: false,
     creadoEn: ahora,
@@ -136,8 +157,10 @@ export function editarObjeto(id, datos) {
     const ahora = Date.now();
     const nuevaUbicacion = datos.ubicacion.trim();
     const historial = [...actual.historial];
-    if (nuevaUbicacion !== actual.ubicacion) {
-      historial.push({ ubicacion: nuevaUbicacion, fecha: ahora });
+    const nuevasCoordenadas = datos.coordenadas ?? null;
+    const cambioCoordenadas = JSON.stringify(nuevasCoordenadas) !== JSON.stringify(actual.coordenadas ?? null);
+    if (nuevaUbicacion !== actual.ubicacion || cambioCoordenadas) {
+      historial.push({ ubicacion: nuevaUbicacion, fecha: ahora, coordenadas: nuevasCoordenadas });
     }
     const cambioRecordatorio = (datos.recordatorio ?? null) !== actual.recordatorio;
     return {
@@ -145,6 +168,7 @@ export function editarObjeto(id, datos) {
       nombre: datos.nombre.trim(),
       categoria: datos.categoria,
       ubicacion: nuevaUbicacion,
+      coordenadas: nuevasCoordenadas,
       notas: (datos.notas ?? '').trim(),
       foto: datos.foto ?? null,
       historial,
@@ -163,7 +187,8 @@ export function moverObjeto(id, nuevaUbicacion) {
     return {
       ...actual,
       ubicacion,
-      historial: [...actual.historial, { ubicacion, fecha: ahora }],
+      coordenadas: null,
+      historial: [...actual.historial, { ubicacion, fecha: ahora, coordenadas: null }],
       actualizadoEn: ahora,
     };
   });

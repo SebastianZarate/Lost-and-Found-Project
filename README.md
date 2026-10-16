@@ -83,21 +83,48 @@ cuenta con el hardware:
 - **Ubicación:** `Usar mi ubicación actual` usa `getCurrentPosition` y registra
   latitud, longitud y precisión en el campo de ubicación para que el usuario
   pueda editar el texto antes de guardar.
+- **Mapa:** Leaflet se sirve localmente y permite seleccionar un punto exacto
+  sobre teselas de OpenStreetMap. Las coordenadas se guardan junto al objeto
+  y se muestran nuevamente en su detalle.
 No se solicita micrófono porque la aplicación no tiene una función de audio que
 lo necesite.
 
-## 5. Cómo probar la aplicación
+## 5.1 Interfaz y preferencias
+
+- El inicio incluye un resumen visual con estadísticas de objetos, fotografías,
+  ubicaciones exactas y categorías.
+- El botón **Modo oscuro / Modo claro** respeta la preferencia del sistema y
+  conserva la elección del usuario para futuras visitas.
+- La interfaz usa tarjetas, una sección de bienvenida y diseño responsive para
+  que la información siga siendo legible en teléfono y escritorio.
+
+## 6. Cómo probar la aplicación
 
 1. Abre la app en Chrome o Edge.
 2. Registra un objeto y verifica su tarjeta y detalle.
 3. Prueba búsqueda, filtros, edición, cambio de ubicación y eliminación.
 4. Revisa **Storage › IndexedDB**: base `organizador-objetos-db` con el almacén `objetos`.
 
-## 6. Publicarlo (opcional)
+## 7. Publicarlo (GitHub Pages)
 
-Todas las rutas son relativas, por lo que funciona en subcarpetas.
+La aplicación está preparada para GitHub Pages. El workflow
+`.github/workflows/deploy-pages.yml` publica automáticamente la rama
+`develop` después de cada `push`, incluyendo los cambios que llegan al
+integrarse un Pull Request hacia `develop`.
 
-## 7. Caché del Atlas 3D
+Para activarlo en GitHub:
+
+1. Abre **Settings → Pages** del repositorio.
+2. En **Build and deployment**, selecciona **GitHub Actions**.
+3. Integra un Pull Request en `develop` o haz `git push origin develop`.
+4. Consulta la URL que aparecerá en la ejecución del workflow.
+
+Todas las rutas son relativas, por lo que funciona en subcarpetas. El mapa
+usa Leaflet incluido localmente y teselas de OpenStreetMap; las teselas
+requieren conexión a Internet, mientras que los datos guardados siguen en
+IndexedDB del dispositivo.
+
+## 8. Caché del Atlas 3D
 
 El Service Worker usa la caché `atlas3d-v2`:
 
@@ -110,7 +137,7 @@ El Service Worker usa la caché `atlas3d-v2`:
 
 Para comprobarlo, abre DevTools → **Application → Cache Storage** y verifica `atlas3d-v2` con seis entradas. Las estrategias de caché están implementadas, pero el funcionamiento offline completo de futuros bundles generados dinámicamente requiere conocer o precachear esas rutas.
 
-## 8. Documentación
+## 9. Documentación
 
 - [`docs/01-analisis-documentos.md`](docs/01-analisis-documentos.md): qué piden los PDFs y cómo se cubrió
 - [`docs/02-arquitectura.md`](docs/02-arquitectura.md): diagramas y decisiones técnicas
