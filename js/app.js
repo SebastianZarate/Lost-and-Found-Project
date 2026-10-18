@@ -26,6 +26,8 @@ const estado = {
   objetos: [],
   texto: '',
   categoria: TODAS,
+  filtro: 'todos',
+  orden: 'recientes',
   editandoId: null,   // null = creando; número = editando
   detalleId: null,    // objeto abierto en el diálogo de detalle
   fotoForm: null,     // Blob de la foto en el formulario
@@ -59,7 +61,8 @@ const ui = {
   formMover: $('form-mover'), inputMover: $('input-mover'),
   detEliminar: $('det-eliminar'), detEditar: $('det-editar'), detCerrar: $('det-cerrar'),
   estadisticas: $('estadisticas-tarjetas'), estadisticasActualizacion: $('estadisticas-actualizacion'),
-  btnTema: $('btn-tema'),
+  actividad: $('actividad-reciente'), graficoCategorias: $('grafico-categorias'),
+  chipsFiltros: $('chips-filtros'), selectOrden: $('select-orden'), btnTema: $('btn-tema'),
 };
 let streamCamara = null;
 let mapaFormulario = null;
@@ -98,12 +101,24 @@ function renderChips() {
       el('button', {
         class: 'chip', type: 'button',
         'aria-pressed': String(estado.categoria === nombre),
-        onclick: () => { estado.categoria = nombre; renderChips(); render(); },
+        onclick: () => {
+          const categoriaActiva = estado.categoria === nombre;
+          estado.categoria = categoriaActiva ? TODAS : nombre;
+          if (nombre === TODAS || categoriaActiva) estado.filtro = 'todos';
+          renderChips();
+          renderChipsFiltros();
+          render();
+        },
       }, nombre)),
   );
 }
 
 function tarjeta(objeto) {
+  const etiquetas = [
+    objeto.foto && 'Foto',
+    objeto.coordenadas && 'Ubicación exacta',
+    objeto.recordatorio && 'Recordatorio',
+  ].filter(Boolean);
   return el('button', {
     class: 'tarjeta', type: 'button',
     'aria-label': `${objeto.nombre}, ubicación: ${objeto.ubicacion}. Ver detalle`,
@@ -114,6 +129,8 @@ function tarjeta(objeto) {
       el('p', { class: 'tarjeta__categoria' }, objeto.categoria),
       el('h2', { class: 'tarjeta__nombre' }, objeto.nombre),
       el('p', { class: 'tarjeta__ubicacion' }, ICONO_PIN(), el('span', {}, objeto.ubicacion)),
+      etiquetas.length > 0 && el('div', { class: 'tarjeta__etiquetas' },
+        ...etiquetas.map((etiqueta) => el('span', { class: 'etiqueta' }, etiqueta))),
       el('p', { class: 'tarjeta__fecha' }, `Actualizado ${tiempoRelativo(objeto.actualizadoEn)}`),
     ),
   );
@@ -123,12 +140,26 @@ function render() {
   urlsFoto.forEach((u) => URL.revokeObjectURL(u));
   urlsFoto = [];
 
-  const visibles = filtrarObjetos(estado.objetos, { texto: estado.texto, categoria: estado.categoria });
+  let visibles = filtrarObjetos(estado.objetos, { texto: estado.texto, categoria: estado.categoria });
+  visibles = visibles.filter((objeto) => {
+    if (estado.filtro === 'foto') return Boolean(objeto.foto);
+    if (estado.filtro === 'mapa') return Boolean(objeto.coordenadas);
+    if (estado.filtro === 'recordatorio') return Boolean(objeto.recordatorio);
+    return true;
+  });
+  visibles.sort((a, b) => {
+    if (estado.orden === 'antiguos') return a.actualizadoEn - b.actualizadoEn;
+    if (estado.orden === 'nombre') return a.nombre.localeCompare(b.nombre, 'es');
+    if (estado.orden === 'categoria') return a.categoria.localeCompare(b.categoria, 'es');
+    return b.actualizadoEn - a.actualizadoEn;
+  });
   ui.lista.replaceChildren(...visibles.map(tarjeta));
   renderEstadisticas();
+  renderActividad();
+  renderGraficoCategorias();
 
   const total = estado.objetos.length;
-  const hayFiltro = estado.texto.trim() !== '' || estado.categoria !== TODAS;
+  const hayFiltro = estado.texto.trim() !== '' || estado.categoria !== TODAS || estado.filtro !== 'todos' || estado.orden !== 'recientes';
 
   ui.contador.textContent = total === 0 ? '' :
     hayFiltro ? `${visibles.length} de ${total} objetos` : `${total} ${total === 1 ? 'objeto' : 'objetos'}`;
@@ -141,11 +172,29 @@ function render() {
       ui.btnVacio.hidden = false;
     } else {
       ui.vacioTitulo.textContent = 'No hay resultados';
-      ui.vacioTexto.textContent = 'Prueba con otro nombre o cambia la categoría seleccionada.';
+      ui.vacioTexto.textContent = 'Prueba con otro nombre o cambia los filtros seleccionados.';
       ui.btnVacio.hidden = true;
     }
 
   }
+}
+
+function renderChipsFiltros() {
+  const filtros = [
+    ['foto', 'Con fotografía'],
+    ['mapa', 'Con ubicación'],
+    ['recordatorio', 'Con recordatorio'],
+  ];
+  ui.chipsFiltros.replaceChildren(...filtros.map(([valor, nombre]) =>
+    el('button', {
+      class: 'chip chip--secundario', type: 'button',
+      'aria-pressed': String(estado.filtro === valor),
+      onclick: () => {
+        estado.filtro = estado.filtro === valor ? 'todos' : valor;
+        renderChipsFiltros();
+        render();
+      },
+    }, nombre)));
 }
 
 function renderEstadisticas() {
@@ -168,6 +217,46 @@ function renderEstadisticas() {
   ui.estadisticasActualizacion.textContent = total
     ? `Actualizado ${new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}`
     : '';
+}
+
+function renderActividad() {
+  const recientes = [...estado.objetos].sort((a, b) => b.actualizadoEn - a.actualizadoEn).slice(0, 4);
+  if (recientes.length === 0) {
+    ui.actividad.replaceChildren(el('p', { class: 'panel-vacio' }, 'Aún no hay movimientos en tu inventario.'));
+    return;
+  }
+  ui.actividad.replaceChildren(...recientes.map((objeto) =>
+    el('button', {
+      class: 'actividad__item', type: 'button',
+      onclick: () => abrirDetalle(objeto.id),
+    },
+    el('span', { class: 'actividad__punto' }),
+    el('span', { class: 'actividad__texto' },
+      el('strong', {}, objeto.nombre),
+      el('small', {}, `${objeto.ubicacion} · ${tiempoRelativo(objeto.actualizadoEn)}`)),
+    el('span', { class: 'actividad__flecha', 'aria-hidden': 'true' }, '›'))));
+}
+
+function renderGraficoCategorias() {
+  const cantidades = CATEGORIAS.map((categoria) => ({
+    categoria,
+    cantidad: estado.objetos.filter((objeto) => objeto.categoria === categoria).length,
+  })).filter((dato) => dato.cantidad > 0);
+  if (cantidades.length === 0) {
+    ui.graficoCategorias.replaceChildren(el('p', { class: 'panel-vacio' }, 'Registra objetos para ver su distribución.'));
+    return;
+  }
+  const maximo = Math.max(...cantidades.map((dato) => dato.cantidad));
+  ui.graficoCategorias.replaceChildren(...cantidades.map(({ categoria, cantidad }) => {
+    const fila = el('div', { class: 'grafico__fila' },
+      el('span', { class: 'grafico__nombre' }, categoria),
+      el('div', { class: 'grafico__barra' },
+        el('span', { class: 'grafico__progreso' }),
+      ),
+      el('strong', { class: 'grafico__cantidad' }, String(cantidad)));
+    fila.querySelector('.grafico__progreso').style.width = `${Math.round((cantidad / maximo) * 100)}%`;
+    return fila;
+  }));
 }
 
 async function recargar() {
@@ -440,6 +529,7 @@ async function comprobarRecordatorios() {
 /* ------------------------------ Arranque ------------------------------ */
 function conectarEventos() {
   ui.buscar.addEventListener('input', () => { estado.texto = ui.buscar.value; render(); });
+  ui.selectOrden.addEventListener('change', () => { estado.orden = ui.selectOrden.value; render(); });
 
   ui.btnNuevo.addEventListener('click', () => abrirFormulario());
   ui.btnVacio.addEventListener('click', () => abrirFormulario());
@@ -467,6 +557,7 @@ function conectarEventos() {
     mapaDetalle = null;
   });
   ui.btnTema.addEventListener('click', alternarTema);
+  renderChipsFiltros();
   aplicarTemaInicial();
   // Cerrar el detalle al tocar fuera de la tarjeta.
   ui.dlgDetalle.addEventListener('click', (e) => { if (e.target === ui.dlgDetalle) ui.dlgDetalle.close(); });
@@ -491,14 +582,21 @@ function conectarEventos() {
     const tema = localStorage.getItem('tema') ||
       (matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro');
     document.documentElement.dataset.tema = tema;
-    ui.btnTema.textContent = tema === 'oscuro' ? 'Modo claro' : 'Modo oscuro';
+    actualizarBotonTema(tema);
+  }
+
+  function actualizarBotonTema(tema) {
+    const siguiente = tema === 'oscuro' ? 'claro' : 'oscuro';
+    ui.btnTema.setAttribute('aria-label', `Cambiar a modo ${siguiente}`);
+    ui.btnTema.title = `Cambiar a modo ${siguiente}`;
+    ui.btnTema.classList.toggle('tema-claro', tema === 'claro');
   }
 
   function alternarTema() {
     const tema = document.documentElement.dataset.tema === 'oscuro' ? 'claro' : 'oscuro';
     document.documentElement.dataset.tema = tema;
     localStorage.setItem('tema', tema);
-    ui.btnTema.textContent = tema === 'oscuro' ? 'Modo claro' : 'Modo oscuro';
+    actualizarBotonTema(tema);
   }
 
   let deferredPrompt;
