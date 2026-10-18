@@ -82,6 +82,8 @@ h1, h2, h3, p { margin: 0; }
 .topbar__logo { width: 26px; height: 26px; fill: var(--azul); flex: none; }
 .topbar__actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .btn--compact { padding: .45rem .75rem; font-size: .85rem; }
+.btn--install { background: var(--naranja); color: #fff; border-color: var(--naranja); }
+.btn--install:hover { background: #d95818; border-color: #d95818; }
 
 /* ---------- Layout ---------- */
 .layout { width: min(1100px, 100%); margin: 0 auto; padding: 1rem; }
@@ -261,6 +263,7 @@ textarea.input { resize: vertical; }
 /* ---------- Responsive ---------- */
 @media (max-width: 520px) {
   .topbar__brand h1 { font-size: .95rem; }
+  .topbar__actions { width: 100%; justify-content: flex-end; }
   .mover__fila { grid-template-columns: 1fr; }
   .fab span { display: none; }
   .fab { padding: .95rem; }
