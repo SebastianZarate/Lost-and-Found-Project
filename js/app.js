@@ -13,8 +13,13 @@ import {
 } from './db.js';
 import { el, formatearFecha, tiempoRelativo, aValorDatetimeLocal } from './utils.js';
 import { redimensionarImagen } from './imagen.js';
+import { crearMapa } from './mapa.js';
 import { revisarRecordatorios } from './notificaciones.js';
 import { registrarServiceWorker } from './pwa.js';
+import {
+  abrirCamara, detenerCamara, capturarFotograma, obtenerUbicacion,
+  describirErrorDispositivo,
+} from './dispositivo.js';
 
 /* ---------------------------- Estado ---------------------------- */
 const estado = {
@@ -39,14 +44,27 @@ const ui = {
   fNombre: $('f-nombre'), fCategoria: $('f-categoria'), fUbicacion: $('f-ubicacion'),
   fNotas: $('f-notas'), fFoto: $('f-foto'), fFotoPreview: $('f-foto-preview'),
   fFotoQuitar: $('f-foto-quitar'), fRecordatorio: $('f-recordatorio'),
+  fFotoCamara: $('f-foto-camara'), fUbicacionActual: $('f-ubicacion-actual'),
+  fUbicacionAyuda: $('f-ubicacion-ayuda'),
+  fMapaAbrir: $('f-mapa-abrir'), fMapa: $('mapa-formulario'), fMapaAyuda: $('f-mapa-ayuda'),
   formCancelar: $('form-cancelar'), formGuardar: $('form-guardar'),
+  dlgCamara: $('dialogo-camara'), camaraVideo: $('camara-video'),
+  camaraAyuda: $('camara-ayuda'), camaraCancelar: $('camara-cancelar'),
+  camaraCapturar: $('camara-capturar'),
   // detalle
   dlgDetalle: $('dialogo-detalle'), detFoto: $('det-foto'), detCategoria: $('det-categoria'),
   detNombre: $('det-nombre'), detUbicacion: $('det-ubicacion'), detFecha: $('det-fecha'),
   detNotas: $('det-notas'), detRecordatorio: $('det-recordatorio'), detHistorial: $('det-historial'),
+  detMapaContenedor: $('det-mapa-contenedor'), detMapa: $('mapa-detalle'),
   formMover: $('form-mover'), inputMover: $('input-mover'),
   detEliminar: $('det-eliminar'), detEditar: $('det-editar'), detCerrar: $('det-cerrar'),
+  estadisticas: $('estadisticas-tarjetas'), estadisticasActualizacion: $('estadisticas-actualizacion'),
+  btnTema: $('btn-tema'),
 };
+let streamCamara = null;
+let mapaFormulario = null;
+let mapaDetalle = null;
+let coordenadasForm = null;
 
 /* --------------------------- Utilidades UI --------------------------- */
 let temporizadorToast;
@@ -107,6 +125,7 @@ function render() {
 
   const visibles = filtrarObjetos(estado.objetos, { texto: estado.texto, categoria: estado.categoria });
   ui.lista.replaceChildren(...visibles.map(tarjeta));
+  renderEstadisticas();
 
   const total = estado.objetos.length;
   const hayFiltro = estado.texto.trim() !== '' || estado.categoria !== TODAS;
@@ -125,7 +144,30 @@ function render() {
       ui.vacioTexto.textContent = 'Prueba con otro nombre o cambia la categoría seleccionada.';
       ui.btnVacio.hidden = true;
     }
+
   }
+}
+
+function renderEstadisticas() {
+  const total = estado.objetos.length;
+  const conFoto = estado.objetos.filter((objeto) => objeto.foto).length;
+  const conMapa = estado.objetos.filter((objeto) => objeto.coordenadas).length;
+  const categorias = new Set(estado.objetos.map((objeto) => objeto.categoria)).size;
+  const datos = [
+    ['Objetos guardados', total, 'En tu inventario'],
+    ['Con fotografía', conFoto, total ? `${Math.round((conFoto / total) * 100)}% del total` : 'Aún sin fotos'],
+    ['Con ubicación exacta', conMapa, total ? `${Math.round((conMapa / total) * 100)}% del total` : 'Usa el mapa'],
+    ['Categorías activas', categorias, 'Organización actual'],
+  ];
+  ui.estadisticas.replaceChildren(...datos.map(([titulo, valor, ayuda]) =>
+    el('article', { class: 'estadistica' },
+      el('strong', {}, String(valor)),
+      el('span', {}, titulo),
+      el('small', {}, ayuda),
+    )));
+  ui.estadisticasActualizacion.textContent = total
+    ? `Actualizado ${new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}`
+    : '';
 }
 
 async function recargar() {
@@ -158,6 +200,9 @@ function limpiarErrores() {
 function abrirFormulario(objeto = null) {
   estado.editandoId = objeto?.id ?? null;
   estado.fotoForm = objeto?.foto ?? null;
+  coordenadasForm = objeto?.coordenadas ?? null;
+  mapaFormulario?.destruir();
+  mapaFormulario = null;
   limpiarErrores();
   ui.form.reset();
 
@@ -168,6 +213,11 @@ function abrirFormulario(objeto = null) {
   ui.fUbicacion.value = objeto?.ubicacion ?? '';
   ui.fNotas.value = objeto?.notas ?? '';
   ui.fRecordatorio.value = aValorDatetimeLocal(objeto?.recordatorio);
+  ui.fUbicacionAyuda.textContent = 'Solo se solicita cuando pulsas el botón.';
+  ui.fMapa.hidden = true;
+  ui.fMapaAyuda.textContent = coordenadasForm
+    ? 'Ya hay un punto seleccionado. Puedes cambiarlo.'
+    : 'Haz clic en el mapa para colocar el marcador.';
   mostrarFotoForm();
 
   ui.dlgDetalle.close();
@@ -199,6 +249,7 @@ async function guardarFormulario(evento) {
     notas: ui.fNotas.value,
     foto: estado.fotoForm,
     recordatorio: marca,
+    coordenadas: coordenadasForm,
   };
 
   ui.formGuardar.disabled = true;
@@ -210,6 +261,7 @@ async function guardarFormulario(evento) {
       await crearObjeto(datos);
       avisar('Objeto registrado');
     }
+
     ui.dlgForm.close();
     await recargar();
     await comprobarRecordatorios();
@@ -221,12 +273,85 @@ async function guardarFormulario(evento) {
   }
 }
 
+function alternarMapaFormulario() {
+  if (mapaFormulario) {
+    mapaFormulario.destruir();
+    mapaFormulario = null;
+    ui.fMapa.hidden = true;
+    ui.fMapaAbrir.textContent = 'Elegir punto en el mapa';
+    return;
+  }
+  ui.fMapa.hidden = false;
+  mapaFormulario = crearMapa(ui.fMapa, (coordenadas) => {
+    coordenadasForm = coordenadas;
+    ui.fMapaAyuda.textContent = `Punto seleccionado: ${coordenadas.latitud.toFixed(5)}, ${coordenadas.longitud.toFixed(5)}`;
+  });
+  if (!mapaFormulario) {
+    ui.fMapaAyuda.textContent = 'El mapa no está disponible sin conexión.';
+    return;
+  }
+  mapaFormulario.colocar(coordenadasForm);
+  ui.fMapaAbrir.textContent = 'Ocultar mapa';
+  setTimeout(() => mapaFormulario?.mapa.invalidateSize(), 0);
+}
+
 async function alElegirFoto() {
   const archivo = ui.fFoto.files?.[0];
   if (!archivo) return;
   estado.fotoForm = await redimensionarImagen(archivo);
   ui.fFoto.value = '';
   mostrarFotoForm();
+}
+
+async function iniciarCamara() {
+  ui.camaraAyuda.textContent = 'Solicitando permiso de cámara...';
+  ui.dlgForm.close();
+  try {
+    streamCamara = await abrirCamara();
+    ui.camaraVideo.srcObject = streamCamara;
+    ui.camaraAyuda.textContent = 'Alinea el objeto y pulsa «Capturar foto».';
+    ui.dlgCamara.showModal();
+  } catch (error) {
+    if (!ui.dlgForm.open) ui.dlgForm.showModal();
+    avisar(describirErrorDispositivo(error, 'camara'));
+    ui.camaraAyuda.textContent = describirErrorDispositivo(error, 'camara');
+  }
+}
+
+function cerrarCamara() {
+  detenerCamara(streamCamara, ui.camaraVideo);
+  streamCamara = null;
+  if (ui.dlgCamara.open) ui.dlgCamara.close();
+}
+
+async function capturarFotoCamara() {
+  try {
+    estado.fotoForm = await redimensionarImagen(await capturarFotograma(ui.camaraVideo));
+    mostrarFotoForm();
+    cerrarCamara();
+  } catch (error) {
+    ui.camaraAyuda.textContent = error.message;
+  }
+}
+
+async function usarUbicacionActual() {
+  ui.fUbicacionActual.disabled = true;
+  ui.fUbicacionAyuda.textContent = 'Solicitando permiso de ubicación...';
+  try {
+    const { coords } = await obtenerUbicacion();
+    coordenadasForm = {
+      latitud: coords.latitude,
+      longitud: coords.longitude,
+      precision: coords.accuracy,
+    };
+    ui.fUbicacion.value = `Coordenadas: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)} (precisión ±${Math.round(coords.accuracy)} m)`;
+    ui.fUbicacionAyuda.textContent = 'Ubicación obtenida. Puedes editarla antes de guardar.';
+    ui.fMapaAyuda.textContent = 'También puedes ajustar el punto exacto en el mapa.';
+  } catch (error) {
+    ui.fUbicacionAyuda.textContent = describirErrorDispositivo(error, 'ubicacion');
+  } finally {
+    ui.fUbicacionActual.disabled = false;
+  }
 }
 
 /* ------------------------------ Detalle ------------------------------ */
@@ -259,6 +384,15 @@ async function abrirDetalle(id) {
     ui.detRecordatorio.textContent = objeto.recordatorioNotificado
       ? `Recordatorio enviado el ${formatearFecha(objeto.recordatorio)}`
       : `Recordatorio programado: ${formatearFecha(objeto.recordatorio)}`;
+  }
+
+  mapaDetalle?.destruir();
+  mapaDetalle = null;
+  ui.detMapaContenedor.hidden = !objeto.coordenadas;
+  if (objeto.coordenadas) {
+    mapaDetalle = crearMapa(ui.detMapa, () => {});
+    mapaDetalle?.colocar(objeto.coordenadas);
+    setTimeout(() => mapaDetalle?.mapa.invalidateSize(), 0);
   }
 
   ui.detHistorial.replaceChildren(
@@ -313,23 +447,58 @@ function conectarEventos() {
   ui.form.addEventListener('submit', guardarFormulario);
   ui.formCancelar.addEventListener('click', () => ui.dlgForm.close());
   ui.fFoto.addEventListener('change', alElegirFoto);
+  ui.fFotoCamara.addEventListener('click', iniciarCamara);
   ui.fFotoQuitar.addEventListener('click', () => { estado.fotoForm = null; mostrarFotoForm(); });
-
+  ui.fUbicacionActual.addEventListener('click', usarUbicacionActual);
+  ui.fMapaAbrir.addEventListener('click', alternarMapaFormulario);
+  ui.camaraCancelar.addEventListener('click', cerrarCamara);
+  ui.camaraCapturar.addEventListener('click', capturarFotoCamara);
+  ui.dlgCamara.addEventListener('close', () => {
+    detenerCamara(streamCamara, ui.camaraVideo);
+    streamCamara = null;
+    if (!document.hidden && !ui.dlgForm.open) ui.dlgForm.showModal();
+  });
   ui.formMover.addEventListener('submit', moverDesdeDetalle);
   ui.detEliminar.addEventListener('click', eliminarDesdeDetalle);
   ui.detEditar.addEventListener('click', editarDesdeDetalle);
   ui.detCerrar.addEventListener('click', () => ui.dlgDetalle.close());
+  ui.dlgDetalle.addEventListener('close', () => {
+    mapaDetalle?.destruir();
+    mapaDetalle = null;
+  });
+  ui.btnTema.addEventListener('click', alternarTema);
+  aplicarTemaInicial();
   // Cerrar el detalle al tocar fuera de la tarjeta.
   ui.dlgDetalle.addEventListener('click', (e) => { if (e.target === ui.dlgDetalle) ui.dlgDetalle.close(); });
 
   document.addEventListener('visibilitychange', () => {
+    if (document.hidden && streamCamara) {
+      cerrarCamara();
+      avisar('La cámara se apagó al salir de la página.');
+    }
+
     if (!document.hidden) comprobarRecordatorios();
   });
+  window.addEventListener('pagehide', cerrarCamara);
 
   window.addEventListener('online', () => document.getElementById('indicador-conexion').hidden = true);
   window.addEventListener('offline', () => document.getElementById('indicador-conexion').hidden = false);
   if (!navigator.onLine) {
     document.getElementById('indicador-conexion').hidden = false;
+  }
+
+  function aplicarTemaInicial() {
+    const tema = localStorage.getItem('tema') ||
+      (matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro');
+    document.documentElement.dataset.tema = tema;
+    ui.btnTema.textContent = tema === 'oscuro' ? 'Modo claro' : 'Modo oscuro';
+  }
+
+  function alternarTema() {
+    const tema = document.documentElement.dataset.tema === 'oscuro' ? 'claro' : 'oscuro';
+    document.documentElement.dataset.tema = tema;
+    localStorage.setItem('tema', tema);
+    ui.btnTema.textContent = tema === 'oscuro' ? 'Modo claro' : 'Modo oscuro';
   }
 
   let deferredPrompt;

@@ -5,6 +5,9 @@ module.exports = {
     'manifest.json',
     'css/*.css',
     'js/*.js',
+    'vendor/leaflet/*.js',
+    'vendor/leaflet/*.css',
+    'vendor/leaflet/images/*',
     'icons/*.png'
   ],
   globIgnores: [
