@@ -334,3 +334,76 @@ textarea.input { resize: vertical; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Sesión 26: Notificaciones Push y Sincronización Outbox ---------- */
+.panel-push-sync {
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  padding: .85rem 1.15rem;
+  box-shadow: var(--sombra);
+  margin-bottom: 1.25rem;
+}
+
+.panel-push-sync__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+
+.panel-push-sync__status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.panel-push-sync__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .8rem;
+  font-weight: 600;
+  padding: .3rem .65rem;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+}
+
+.badge--sync {
+  background: var(--azul-claro);
+  color: var(--azul-oscuro);
+  border-color: rgba(29, 111, 234, .2);
+}
+
+.badge--sync.pendiente {
+  background: #fef3c7;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.badge--avisos {
+  background: var(--papel);
+  color: var(--tinta-suave);
+  border-color: var(--linea);
+}
+
+.badge--avisos.activo {
+  background: #dcfce7;
+  color: var(--verde);
+  border-color: #bbf7d0;
+}
+
+.badge--avisos.bloqueado {
+  background: #fee2e2;
+  color: var(--rojo);
+  border-color: #fca5a5;
+}

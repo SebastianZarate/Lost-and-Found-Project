@@ -25,7 +25,7 @@ import { normalizar } from './utils.js';
 import { TODAS } from './constants.js';
 
 const DB_NAME = 'organizador-objetos-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE = 'objetos';
 
 let dbPromise = null;
@@ -45,7 +45,6 @@ export function abrirDB() {
         almacen.createIndex('nombre', 'nombre');
         almacen.createIndex('categoria', 'categoria');
         almacen.createIndex('actualizadoEn', 'actualizadoEn');
-        return;
       }
 
       if (evento.oldVersion < 2) {
@@ -62,6 +61,11 @@ export function abrirDB() {
           cursor.update({ ...objeto, coordenadas, historial });
           cursor.continue();
         };
+      }
+
+      // Sesión 26: Bandeja de salida (outbox) para Background Sync
+      if (!db.objectStoreNames.contains('outbox')) {
+        db.createObjectStore('outbox', { keyPath: 'idCambio' });
       }
     };
 
