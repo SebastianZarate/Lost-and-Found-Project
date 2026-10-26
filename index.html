@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Obj. Perdidos" />
 
-  <link rel="stylesheet" href="css/styles.css?v=20261018-3" />
+  <link rel="stylesheet" href="css/styles.css?v=20261026-1" />
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
 </head>
 <body>
@@ -41,6 +41,30 @@
         <p>Registra objetos, guarda su ubicación exacta y consulta todo desde un solo lugar.</p>
       </div>
       <div class="bienvenida__badge">Tus datos, bajo tu control</div>
+    </section>
+
+    <!-- Notificaciones Push y Sincronización Outbox (Sesión 26) -->
+    <section class="panel-push-sync" aria-label="Notificaciones Push y Sincronización">
+      <div class="panel-push-sync__header">
+        <div class="panel-push-sync__status">
+          <span id="estado-sync" class="badge badge--sync">☁ Todo sincronizado con el servidor</span>
+          <span id="estado-avisos" class="badge badge--avisos">Avisos sin activar</span>
+        </div>
+        <div class="panel-push-sync__actions">
+          <button id="btn-avisos" class="btn btn--ghost btn--compact" type="button" title="Activar avisos y probar notificación local">
+            🔔 Activar avisos
+          </button>
+          <button id="btn-suscribir-push" class="btn btn--primary btn--compact" type="button" title="Suscribir a notificaciones push del servidor">
+            📡 Suscribir a push
+          </button>
+          <button id="btn-push-prueba" class="btn btn--ghost btn--compact" type="button" title="Recibir un push de prueba desde el servidor" hidden>
+            ✉ Push de prueba
+          </button>
+          <button id="btn-cancelar-push" class="btn btn--text btn--compact" type="button" title="Cancelar suscripción push" hidden>
+            🔕 Cancelar push
+          </button>
+        </div>
+      </div>
     </section>
 
     <section id="estadisticas" class="estadisticas" aria-labelledby="estadisticas-titulo">

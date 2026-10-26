@@ -8,13 +8,28 @@
  */
 import { CATEGORIAS, TODAS, INTERVALO_RECORDATORIOS_MS } from './constants.js';
 import {
+  abrirDB,
   crearObjeto, listarObjetos, obtenerObjeto, editarObjeto, moverObjeto,
   eliminarObjeto, filtrarObjetos, marcarRecordatorioNotificado,
 } from './db.js';
 import { el, formatearFecha, tiempoRelativo, aValorDatetimeLocal } from './utils.js';
 import { redimensionarImagen } from './imagen.js';
 import { crearMapa } from './mapa.js';
-import { revisarRecordatorios } from './notificaciones.js';
+import {
+  pedirPermisoNotificaciones,
+  mostrarAvisoLocal,
+  suscribirAPush,
+  cancelarSuscripcionPush,
+  obtenerSuscripcionActual,
+  describirErrorPush,
+  enviarPushPrueba,
+  revisarRecordatorios,
+} from './notificaciones.js';
+import {
+  encolarCambio,
+  pedirSincronizacion,
+  contarCambiosPendientes,
+} from './sync.js';
 import { registrarServiceWorker } from './pwa.js';
 import {
   abrirCamara, detenerCamara, capturarFotograma, obtenerUbicacion,
@@ -63,6 +78,10 @@ const ui = {
   estadisticas: $('estadisticas-tarjetas'), estadisticasActualizacion: $('estadisticas-actualizacion'),
   actividad: $('actividad-reciente'), graficoCategorias: $('grafico-categorias'),
   chipsFiltros: $('chips-filtros'), selectOrden: $('select-orden'), btnTema: $('btn-tema'),
+  // Sesión 26: Notificaciones Push y Sincronización Outbox
+  btnAvisos: $('btn-avisos'), btnSuscribirPush: $('btn-suscribir-push'),
+  btnPushPrueba: $('btn-push-prueba'), btnCancelarPush: $('btn-cancelar-push'),
+  estadoSync: $('estado-sync'), estadoAvisos: $('estado-avisos'),
 };
 let streamCamara = null;
 let mapaFormulario = null;
@@ -351,6 +370,23 @@ async function guardarFormulario(evento) {
       avisar('Objeto registrado');
     }
 
+    // Sesión 26: Registrar en bandeja outbox para Background Sync
+    try {
+      const db = await abrirDB();
+      await encolarCambio(db, 'guardar-objeto', {
+        nombre: datos.nombre,
+        categoria: datos.categoria,
+        ubicacion: datos.ubicacion,
+        notas: datos.notas,
+        actualizadoEn: Date.now(),
+      });
+      await actualizarEstadoSync();
+      await pedirSincronizacion(db);
+    } catch (errSync) {
+      console.warn('Sync pendiente en outbox:', errSync.message);
+    }
+    await actualizarEstadoSync();
+
     ui.dlgForm.close();
     await recargar();
     await comprobarRecordatorios();
@@ -499,6 +535,22 @@ async function moverDesdeDetalle(evento) {
   if (!nueva || estado.detalleId == null) return;
   await moverObjeto(estado.detalleId, nueva);
   avisar('Ubicación actualizada');
+
+  // Sesión 26: Encolar en outbox cambio de ubicación
+  try {
+    const db = await abrirDB();
+    await encolarCambio(db, 'mover-objeto', {
+      id: estado.detalleId,
+      nuevaUbicacion: nueva,
+      actualizadoEn: Date.now(),
+    });
+    await actualizarEstadoSync();
+    await pedirSincronizacion(db);
+  } catch (errSync) {
+    console.warn('Sync diferido outbox:', errSync.message);
+  }
+  await actualizarEstadoSync();
+
   await recargar();
   await abrirDetalle(estado.detalleId);
 }
@@ -572,7 +624,16 @@ function conectarEventos() {
   });
   window.addEventListener('pagehide', cerrarCamara);
 
-  window.addEventListener('online', () => document.getElementById('indicador-conexion').hidden = true);
+  window.addEventListener('online', async () => {
+    document.getElementById('indicador-conexion').hidden = true;
+    try {
+      const db = await abrirDB();
+      await pedirSincronizacion(db);
+    } catch (e) {
+      console.warn('Fallo sync al volver online:', e);
+    }
+    await actualizarEstadoSync();
+  });
   window.addEventListener('offline', () => document.getElementById('indicador-conexion').hidden = false);
   if (!navigator.onLine) {
     document.getElementById('indicador-conexion').hidden = false;
@@ -614,6 +675,136 @@ function conectarEventos() {
     deferredPrompt = null;
     btnInstalar.hidden = true;
   });
+
+  // ── Eventos Notificaciones Push y Background Sync (Sesión 26) ─────────────
+  if (ui.btnAvisos) {
+    ui.btnAvisos.addEventListener('click', async () => {
+      const permiso = await pedirPermisoNotificaciones();
+      if (permiso === 'granted') {
+        await mostrarAvisoLocal(
+          'Avisos activados',
+          'Así se verán las alertas y recordatorios de tus objetos.',
+          '/index.html'
+        );
+        avisar('Avisos activados');
+      } else {
+        avisar('No se activaron los avisos. La app sigue funcionando.');
+      }
+      await pintarEstadoAvisos();
+    });
+  }
+
+  if (ui.btnSuscribirPush) {
+    ui.btnSuscribirPush.addEventListener('click', async () => {
+      try {
+        const permiso = await pedirPermisoNotificaciones();
+        if (permiso !== 'granted') {
+          avisar('Debes conceder permiso de avisos para suscribirte a push.');
+          await pintarEstadoAvisos();
+          return;
+        }
+        avisar('Conectando al servicio push...');
+        await suscribirAPush();
+        avisar('¡Suscrito a notificaciones push!');
+      } catch (err) {
+        avisar(describirErrorPush(err));
+      }
+      await pintarEstadoAvisos();
+    });
+  }
+
+  if (ui.btnCancelarPush) {
+    ui.btnCancelarPush.addEventListener('click', async () => {
+      try {
+        await cancelarSuscripcionPush();
+        avisar('Suscripción push cancelada.');
+      } catch (err) {
+        avisar('Error al cancelar: ' + err.message);
+      }
+      await pintarEstadoAvisos();
+    });
+  }
+
+  if (ui.btnPushPrueba) {
+    ui.btnPushPrueba.addEventListener('click', async () => {
+      try {
+        avisar('Enviando push de prueba...');
+        const res = await enviarPushPrueba(
+          'Organizador de Objetos',
+          `Tienes ${estado.objetos.length} objeto(s) en tu inventario.`,
+          '/index.html?desde=push'
+        );
+        avisar(`Push enviado: ${res.enviados} entregado(s).`);
+      } catch (err) {
+        avisar('Fallo push de prueba: ' + err.message);
+      }
+    });
+  }
+
+  // Notificación desde el SW cuando termina un sync
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'SYNC_COMPLETADO') {
+        actualizarEstadoSync();
+        avisar(`Sincronizados ${event.data.enviados} cambio(s) con el servidor`);
+      }
+    });
+  }
+}
+
+// ── Helpers de Estado de Sync y Avisos ──────────────────────────────────────
+async function actualizarEstadoSync() {
+  if (!ui.estadoSync) return;
+  try {
+    const db = await abrirDB();
+    const pendientes = await contarCambiosPendientes(db);
+    if (pendientes === 0) {
+      ui.estadoSync.textContent = '☁ Todo sincronizado con el servidor';
+      ui.estadoSync.classList.remove('pendiente');
+    } else {
+      ui.estadoSync.textContent = `☁ ${pendientes} cambio(s) pendiente(s) de enviar`;
+      ui.estadoSync.classList.add('pendiente');
+    }
+  } catch (err) {
+    console.warn('Error al verificar outbox:', err);
+  }
+}
+
+async function pintarEstadoAvisos() {
+  if (!ui.estadoAvisos) return;
+
+  if (!('Notification' in window)) {
+    ui.estadoAvisos.textContent = 'Avisos no soportados';
+    ui.estadoAvisos.className = 'badge badge--avisos';
+    if (ui.btnAvisos) ui.btnAvisos.disabled = true;
+    if (ui.btnSuscribirPush) ui.btnSuscribirPush.disabled = true;
+    return;
+  }
+
+  const permiso = Notification.permission;
+  if (permiso === 'granted') {
+    ui.estadoAvisos.textContent = 'Avisos activados';
+    ui.estadoAvisos.className = 'badge badge--avisos activo';
+  } else if (permiso === 'denied') {
+    ui.estadoAvisos.textContent = 'Avisos bloqueados';
+    ui.estadoAvisos.className = 'badge badge--avisos bloqueado';
+  } else {
+    ui.estadoAvisos.textContent = 'Avisos sin activar';
+    ui.estadoAvisos.className = 'badge badge--avisos';
+  }
+
+  const sub = await obtenerSuscripcionActual();
+  if (sub) {
+    if (ui.btnSuscribirPush) ui.btnSuscribirPush.hidden = true;
+    if (ui.btnCancelarPush) ui.btnCancelarPush.hidden = false;
+    if (ui.btnPushPrueba) ui.btnPushPrueba.hidden = false;
+    ui.estadoAvisos.textContent = 'Avisos activados · Push suscrito';
+    ui.estadoAvisos.className = 'badge badge--avisos activo';
+  } else {
+    if (ui.btnSuscribirPush) ui.btnSuscribirPush.hidden = false;
+    if (ui.btnCancelarPush) ui.btnCancelarPush.hidden = true;
+    if (ui.btnPushPrueba) ui.btnPushPrueba.hidden = true;
+  }
 }
 
 async function iniciar() {
@@ -630,6 +821,9 @@ async function iniciar() {
     return;
   }
 
+  await actualizarEstadoSync();
+  await pintarEstadoAvisos();
+
   await comprobarRecordatorios();
   setInterval(comprobarRecordatorios, INTERVALO_RECORDATORIOS_MS);
 
@@ -637,3 +831,4 @@ async function iniciar() {
 }
 
 iniciar();
+

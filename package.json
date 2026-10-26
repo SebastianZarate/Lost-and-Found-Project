@@ -1,13 +1,23 @@
 {
   "name": "organizador-objetos-perdidos",
   "version": "1.0.0",
-  "description": "Aplicación web para registrar y localizar objetos personales.",
+  "description": "Aplicación web para registrar y localizar objetos personales con Notificaciones Push y Background Sync.",
   "type": "module",
   "private": true,
   "scripts": {
     "start": "node js/servidor.js",
-    "start:python": "python -m http.server 5500"
+    "start:python": "python -m http.server 5505",
+    "build:sw": "npx workbox-cli injectManifest workbox-config.cjs"
   },
-  "keywords": ["indexeddb", "objetos perdidos"],
+  "dependencies": {
+    "web-push": "^3.6.7"
+  },
+  "keywords": [
+    "indexeddb",
+    "objetos perdidos",
+    "pwa",
+    "push-notifications",
+    "background-sync"
+  ],
   "license": "MIT"
 }

@@ -12,28 +12,15 @@ module.exports = {
   ],
   globIgnores: [
     'node_modules/**/*',
+    'workbox-config.cjs',
     'workbox-config.js',
-    'package*.json'
+    'package*.json',
+    'sw-propio.js',
+    'sw.js.map',
+    'lib/**/*',
+    'servidor-datos.json',
+    'claves-vapid.json'
   ],
-  swDest: 'sw.js',
-  runtimeCaching: [
-    {
-      urlPattern: /\/icons\//,
-      handler: 'CacheFirst',
-      options: {
-        cacheName: 'imagenes',
-        expiration: {
-          maxEntries: 60,
-          maxAgeSeconds: 30 * 24 * 60 * 60,
-        },
-      },
-    },
-    {
-      urlPattern: ({ request }) => ['document', 'script', 'style'].includes(request.destination),
-      handler: 'StaleWhileRevalidate',
-      options: {
-        cacheName: 'shell',
-      },
-    }
-  ]
+  swSrc: 'sw-propio.js',
+  swDest: 'sw.js'
 };
