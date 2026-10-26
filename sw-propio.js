@@ -95,6 +95,8 @@ self.addEventListener("push", (event) => {
       body: datos.cuerpo,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
+      lang: "es",
+      dir: "auto",
       tag: datos.tag ?? "obj-perdido-aviso",
       data: { url: datos.url },
     })
@@ -163,6 +165,8 @@ async function avisarDeSincronizacion(enviados) {
       body: `${enviados} ${enviados === 1 ? "objeto sincronizado" : "objetos sincronizados"} con el servidor.`,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
+      lang: "es",
+      dir: "auto",
       tag: "obj-sync",
       data: { url: "/index.html" },
     });

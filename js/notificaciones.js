@@ -26,6 +26,8 @@ export async function mostrarAvisoLocal(titulo, cuerpo, url = "/index.html") {
     body: cuerpo,
     icon: "/icons/icon-192.png",
     badge: "/icons/icon-192.png",
+    lang: "es",
+    dir: "auto",
     tag: "obj-perdido-aviso",
     data: { url },
   });

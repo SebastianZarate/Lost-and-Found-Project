@@ -301,8 +301,9 @@ textarea.input { resize: vertical; }
 .toast {
   position: fixed; left: 50%; bottom: 5.5rem; transform: translateX(-50%); z-index: 50;
   max-width: calc(100% - 2rem); padding: .7rem 1.1rem;
-  background: var(--tinta); color: #fff; border-radius: var(--radio-sm);
-  box-shadow: var(--sombra); font-size: .95rem;
+  background: var(--superficie); color: var(--tinta); border: 1px solid var(--linea);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .22); border-radius: var(--radio-sm);
+  font-size: .95rem; font-weight: 600;
 }
 
 /* ---------- Responsive ---------- */

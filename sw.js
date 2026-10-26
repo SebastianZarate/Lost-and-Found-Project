@@ -14,7 +14,7 @@ workbox.core.clientsClaim();
 cleanupOutdatedCaches();
 
 // Inyección del manifiesto generado por Workbox
-precacheAndRoute([{"revision":"3c61ba3c6ca52baf52d048acc214c577","url":"index.html"},{"revision":"33d855c76be489025daad689dce3cf2d","url":"manifest.json"},{"revision":"d3dc1e490f042a0a95584526ca55eae3","url":"css/styles.css"},{"revision":"78155cfe51aeb7e42303df0c516e826c","url":"js/utils.js"},{"revision":"106f75f68737c3de5a4194a44308997f","url":"js/sync.js"},{"revision":"406d4ea3f6bd373296d9e6035c6290f2","url":"js/servidor.js"},{"revision":"6d48d1625b438c037fd8ff1f860a677c","url":"js/pwa.js"},{"revision":"8a65cefb6d4ca2b7952db5006e7a2083","url":"js/notificaciones.js"},{"revision":"18d3ebd3f34398fd2763c70ef3c660b5","url":"js/mapa.js"},{"revision":"b2c248b627c9a9a56f1dbf93b6df859e","url":"js/imagen.js"},{"revision":"46f8639a02583027fc35dd5e427e7a5a","url":"js/dispositivo.js"},{"revision":"67685dba0a516674f5d93c0c610fd422","url":"js/db.js"},{"revision":"b4339759196b230e41cf063ee586caad","url":"js/constants.js"},{"revision":"9c2e0c94c83562bc26559d8f4f6913c5","url":"js/app.js"},{"revision":"f7a3fe98f3eb12ae0e6cff8019a0a672","url":"vendor/leaflet/leaflet.js"},{"revision":"c02c12fe5e21d2493070649584ca38b7","url":"vendor/leaflet/leaflet.css"},{"revision":"44a526eed258222515aa21eaffd14a96","url":"vendor/leaflet/images/marker-shadow.png"},{"revision":"2273e3d8ad9264b7daa5bdbf8e6b47f8","url":"vendor/leaflet/images/marker-icon.png"},{"revision":"401d815dc206b8dc1b17cd0e37695975","url":"vendor/leaflet/images/marker-icon-2x.png"},{"revision":"a6137456ed160d7606981aa57c559898","url":"vendor/leaflet/images/layers.png"},{"revision":"4f0283c6ce28e888000e978e537a6a56","url":"vendor/leaflet/images/layers-2x.png"},{"revision":"604e6c9158437913b310e93219c5c1b3","url":"icons/icon-maskable-512.png"},{"revision":"060177290b6a3805e1398eec2d644f30","url":"icons/icon-512.png"},{"revision":"eed1439f74dea1ec36888831162809af","url":"icons/icon-192.png"}]);
+precacheAndRoute([{"revision":"531a62e311668ddf05ca88766a9f46f6","url":"index.html"},{"revision":"33d855c76be489025daad689dce3cf2d","url":"manifest.json"},{"revision":"1d2d82635508defb90e5d81b05fb36f9","url":"css/styles.css"},{"revision":"8b30be61d8124605daf2505c58da1349","url":"js/utils.js"},{"revision":"62e8a9b42460499a5bfad11bd5266ced","url":"js/sync.js"},{"revision":"a26bc0a9ab6f36b52644b2ecc0d94d33","url":"js/servidor.js"},{"revision":"5505d858edc84c2e25c9e26f3cac819a","url":"js/pwa.js"},{"revision":"4ccb116019c6d7dbcaae64811a884550","url":"js/notificaciones.js"},{"revision":"18d3ebd3f34398fd2763c70ef3c660b5","url":"js/mapa.js"},{"revision":"3e771289a80daa78d17b8b7ce17cde91","url":"js/imagen.js"},{"revision":"46f8639a02583027fc35dd5e427e7a5a","url":"js/dispositivo.js"},{"revision":"67685dba0a516674f5d93c0c610fd422","url":"js/db.js"},{"revision":"d8abe4904cabbe4e343b26e3a8cd90b1","url":"js/constants.js"},{"revision":"9c2e0c94c83562bc26559d8f4f6913c5","url":"js/app.js"},{"revision":"35b48eb991f383702f153452506e07b2","url":"vendor/leaflet/leaflet.js"},{"revision":"c02c12fe5e21d2493070649584ca38b7","url":"vendor/leaflet/leaflet.css"},{"revision":"44a526eed258222515aa21eaffd14a96","url":"vendor/leaflet/images/marker-shadow.png"},{"revision":"2273e3d8ad9264b7daa5bdbf8e6b47f8","url":"vendor/leaflet/images/marker-icon.png"},{"revision":"401d815dc206b8dc1b17cd0e37695975","url":"vendor/leaflet/images/marker-icon-2x.png"},{"revision":"a6137456ed160d7606981aa57c559898","url":"vendor/leaflet/images/layers.png"},{"revision":"4f0283c6ce28e888000e978e537a6a56","url":"vendor/leaflet/images/layers-2x.png"},{"revision":"604e6c9158437913b310e93219c5c1b3","url":"icons/icon-maskable-512.png"},{"revision":"060177290b6a3805e1398eec2d644f30","url":"icons/icon-512.png"},{"revision":"eed1439f74dea1ec36888831162809af","url":"icons/icon-192.png"}]);
 
 // Estrategias de caché en tiempo de ejecución
 registerRoute(
@@ -95,6 +95,8 @@ self.addEventListener("push", (event) => {
       body: datos.cuerpo,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
+      lang: "es",
+      dir: "auto",
       tag: datos.tag ?? "obj-perdido-aviso",
       data: { url: datos.url },
     })
@@ -163,6 +165,8 @@ async function avisarDeSincronizacion(enviados) {
       body: `${enviados} ${enviados === 1 ? "objeto sincronizado" : "objetos sincronizados"} con el servidor.`,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
+      lang: "es",
+      dir: "auto",
       tag: "obj-sync",
       data: { url: "/index.html" },
     });

@@ -2,7 +2,7 @@ export async function registrarServiceWorker() {
   if (!('serviceWorker' in navigator)) return null;
 
   try {
-    const ruta = new URL('../sw.js?v=20261018-1', import.meta.url);
+    const ruta = new URL('../sw.js?v=20261026-1', import.meta.url);
     const registro = await navigator.serviceWorker.register(ruta);
     const activarActualizacion = () => {
       if (registro.waiting) registro.waiting.postMessage({ type: 'SKIP_WAITING' });
