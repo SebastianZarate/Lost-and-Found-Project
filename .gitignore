@@ -3,3 +3,6 @@ node_modules/
 *.log
 claves-vapid.json
 servidor-datos.json
+datos/*.sqlite
+datos/*.sqlite-shm
+datos/*.sqlite-wal

@@ -19,13 +19,13 @@ export async function pedirPermisoNotificaciones() {
  * Se prefiere showNotification() para evitar TypeError en Chrome en Android y
  * garantizar compatibilidad fuera de foco.
  */
-export async function mostrarAvisoLocal(titulo, cuerpo, url = "/index.html") {
+export async function mostrarAvisoLocal(titulo, cuerpo, url = "./index.html") {
   if (!("serviceWorker" in navigator)) return;
   const reg = await navigator.serviceWorker.ready;
   await reg.showNotification(titulo, {
     body: cuerpo,
-    icon: "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
+    icon: new URL("../icons/icon-192.png", import.meta.url).href,
+    badge: new URL("../icons/icon-192.png", import.meta.url).href,
     lang: "es",
     dir: "auto",
     tag: "obj-perdido-aviso",

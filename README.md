@@ -65,6 +65,7 @@ organizador-objetos-perdidos/
 | Actualizar ubicación | `js/db.js › moverObjeto` (con historial) |
 | Modificación y eliminación (alcance V1) | `editarObjeto`, `eliminarObjeto` |
 | Almacenamiento local | `js/db.js` (IndexedDB) |
+| Base de datos persistente del servidor | SQLite (`datos/organizador.sqlite`) |
 | Diseño responsive | `css/styles.css` |
 | Notificaciones / recordatorios (complementario) | `js/notificaciones.js` |
 | Recordatorios dentro de la aplicación | `js/notificaciones.js` |
@@ -104,6 +105,15 @@ lo necesite.
 2. Registra un objeto y verifica su tarjeta y detalle.
 3. Prueba búsqueda, filtros, edición, cambio de ubicación y eliminación.
 4. Revisa **Storage › IndexedDB**: base `organizador-objetos-db` con el almacén `objetos`.
+5. Detén y reinicia `npm start`: los datos del servidor deben conservarse gracias a SQLite.
+
+## Datos iniciales de demostración
+
+En una instalación nueva, la aplicación crea ocho objetos realistas y distribuidos
+en varias categorías. Los datos se cargan solo una vez: si el inventario ya tiene
+objetos o si el usuario elimina todos los registros, no se vuelven a crear
+automáticamente. Esto permite que el despliegue en GitHub Pages muestre estadísticas
+y actividad sin depender de que SQLite esté disponible.
 
 ## 7. Publicarlo (GitHub Pages)
 

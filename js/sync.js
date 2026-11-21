@@ -6,6 +6,7 @@
  */
 
 export const ETIQUETA_SYNC = "sync-objetos";
+const URL_OBJETOS = new URL("../api/objetos", import.meta.url);
 
 /** Comprueba si el navegador soporta Background Synchronization. */
 export function haySyncEnSegundoPlano() {
@@ -69,7 +70,7 @@ export async function vaciarDesdeLaPagina(db) {
   let enviados = 0;
 
   for (const cambio of pendientes) {
-    const resp = await fetch("/api/objetos", {
+    const resp = await fetch(URL_OBJETOS, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(cambio),
@@ -104,4 +105,10 @@ export async function pedirSincronizacion(db) {
   // Plan B: Vaciar desde la página
   await vaciarDesdeLaPagina(db);
   return "desde-la-pagina";
+}
+
+export async function obtenerObjetosServidor() {
+  const resp = await fetch(URL_OBJETOS, { headers: { Accept: "application/json" } });
+  if (!resp.ok) throw new Error(`El servidor respondió con código ${resp.status}`);
+  return resp.json();
 }
