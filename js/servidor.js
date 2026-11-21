@@ -2,17 +2,23 @@
 // Sirve la PWA, gestiona suscripciones Web Push con VAPID y recibe sincronizaciones outbox.
 
 import { createServer } from 'node:http';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { extname, join, normalize, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import webpush from 'web-push';
+import {
+  obtenerSuscripciones,
+  guardarSuscripcion,
+  eliminarSuscripcion,
+  listarObjetos,
+  procesarCambio,
+} from './base-datos.js';
 
 const raiz = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const puerto = Number(process.env.PORT || 5500);
 
 const ARCHIVO_CLAVES = join(raiz, 'claves-vapid.json');
-const ARCHIVO_DATOS = join(raiz, 'servidor-datos.json');
 
 // ── Claves VAPID ───────────────────────────────────────────────────────────
 let claves;
@@ -29,25 +35,6 @@ webpush.setVapidDetails(
   claves.publicKey,
   claves.privateKey
 );
-
-// ── Datos persistentes del servidor ─────────────────────────────────────────
-function cargarDatos() {
-  if (existsSync(ARCHIVO_DATOS)) {
-    try {
-      return JSON.parse(readFileSync(ARCHIVO_DATOS, 'utf8'));
-    } catch {
-      return { suscripciones: [], objetos: [] };
-    }
-  }
-  return { suscripciones: [], objetos: [] };
-}
-
-let datosServidor = cargarDatos();
-
-async function guardarDatos(nuevosDatos) {
-  datosServidor = nuevosDatos;
-  await writeFile(ARCHIVO_DATOS, JSON.stringify(datosServidor, null, 2));
-}
 
 // ── Utilidades HTTP ────────────────────────────────────────────────────────
 const tipos = {
@@ -114,12 +101,8 @@ const servidor = createServer(async (solicitud, respuesta) => {
         return responder(respuesta, 400, { error: 'suscripción incompleta' });
       }
 
-      const existe = datosServidor.suscripciones.some((s) => s.endpoint === sub.endpoint);
-      if (!existe) {
-        datosServidor.suscripciones.push(sub);
-        await guardarDatos(datosServidor);
-      }
-      return responder(respuesta, 201, { ok: true, total: datosServidor.suscripciones.length });
+      guardarSuscripcion(sub);
+      return responder(respuesta, 201, { ok: true, total: obtenerSuscripciones().length });
     } catch {
       return responder(respuesta, 400, { error: 'JSON inválido' });
     }
@@ -129,9 +112,8 @@ const servidor = createServer(async (solicitud, respuesta) => {
   if (solicitud.method === 'POST' && ruta === '/api/desuscribir') {
     try {
       const { endpoint } = await leerCuerpoJson(solicitud);
-      datosServidor.suscripciones = datosServidor.suscripciones.filter((s) => s.endpoint !== endpoint);
-      await guardarDatos(datosServidor);
-      return responder(respuesta, 200, { ok: true, total: datosServidor.suscripciones.length });
+      eliminarSuscripcion(endpoint);
+      return responder(respuesta, 200, { ok: true, total: obtenerSuscripciones().length });
     } catch {
       return responder(respuesta, 400, { error: 'JSON inválido' });
     }
@@ -149,7 +131,7 @@ const servidor = createServer(async (solicitud, respuesta) => {
       const mensaje = JSON.stringify({ titulo, cuerpo, url });
       const resultado = { enviados: 0, fallidos: 0, eliminadas: 0 };
 
-      for (const sub of [...datosServidor.suscripciones]) {
+      for (const sub of obtenerSuscripciones()) {
         try {
           await webpush.sendNotification(sub, mensaje, { TTL: 60 });
           resultado.enviados++;
@@ -157,7 +139,7 @@ const servidor = createServer(async (solicitud, respuesta) => {
           resultado.fallidos++;
           // 404/410: suscripción caducada o revocada por el usuario
           if (err.statusCode === 404 || err.statusCode === 410) {
-            datosServidor.suscripciones = datosServidor.suscripciones.filter((s) => s.endpoint !== sub.endpoint);
+            eliminarSuscripcion(sub.endpoint);
             resultado.eliminadas++;
           } else {
             console.error('Error al enviar push:', err.statusCode ?? '', err.message);
@@ -165,7 +147,6 @@ const servidor = createServer(async (solicitud, respuesta) => {
         }
       }
 
-      await guardarDatos(datosServidor);
       return responder(respuesta, 200, resultado);
     } catch (err) {
       return responder(respuesta, 500, { error: err.message });
@@ -174,7 +155,7 @@ const servidor = createServer(async (solicitud, respuesta) => {
 
   // 5. Consultar objetos / tareas sincronizados
   if (solicitud.method === 'GET' && (ruta === '/api/objetos' || ruta === '/api/tareas')) {
-    return responder(respuesta, 200, datosServidor.objetos);
+    return responder(respuesta, 200, listarObjetos());
   }
 
   // 6. Recibir sincronización outbox (Background Sync y Plan B)
@@ -185,15 +166,8 @@ const servidor = createServer(async (solicitud, respuesta) => {
         return responder(respuesta, 400, { error: 'El cambio debe incluir idCambio (UUID)' });
       }
 
-      // Idempotencia: no duplicar si el reintento ya llegó
-      const yaExiste = datosServidor.objetos.some((o) => o.idCambio === cambio.idCambio);
-      if (yaExiste) {
-        return responder(respuesta, 200, { ok: true, duplicado: true });
-      }
-
-      datosServidor.objetos.push(cambio);
-      await guardarDatos(datosServidor);
-      return responder(respuesta, 200, { ok: true, duplicado: false });
+      const resultado = procesarCambio(cambio);
+      return responder(respuesta, 200, { ok: true, ...resultado });
     } catch {
       return responder(respuesta, 400, { error: 'JSON inválido' });
     }

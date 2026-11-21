@@ -25,7 +25,7 @@ import { normalizar } from './utils.js';
 import { TODAS } from './constants.js';
 
 const DB_NAME = 'organizador-objetos-db';
-const DB_VERSION = 3;
+const DB_VERSION = 5;
 const STORE = 'objetos';
 
 let dbPromise = null;
@@ -45,6 +45,26 @@ export function abrirDB() {
         almacen.createIndex('nombre', 'nombre');
         almacen.createIndex('categoria', 'categoria');
         almacen.createIndex('actualizadoEn', 'actualizadoEn');
+        almacen.createIndex('claveSincronizacion', 'claveSincronizacion', { unique: true });
+      } else if (!peticion.transaction.objectStore(STORE).indexNames.contains('claveSincronizacion')) {
+        peticion.transaction.objectStore(STORE).createIndex(
+          'claveSincronizacion',
+          'claveSincronizacion',
+          { unique: true }
+        );
+      }
+
+      if (evento.oldVersion < 4) {
+        const almacen = peticion.transaction.objectStore(STORE);
+        almacen.openCursor().onsuccess = (cursorEvento) => {
+          const cursor = cursorEvento.target.result;
+          if (!cursor) return;
+          const objeto = cursor.value;
+          if (!objeto.claveSincronizacion) {
+            cursor.update({ ...objeto, claveSincronizacion: crypto.randomUUID() });
+          }
+          cursor.continue();
+        };
       }
 
       if (evento.oldVersion < 2) {
@@ -61,6 +81,10 @@ export function abrirDB() {
           cursor.update({ ...objeto, coordenadas, historial });
           cursor.continue();
         };
+      }
+
+      if (!db.objectStoreNames.contains('configuracion')) {
+        db.createObjectStore('configuracion', { keyPath: 'clave' });
       }
 
       // Sesión 26: Bandeja de salida (outbox) para Background Sync
@@ -128,6 +152,7 @@ export async function crearObjeto({
 }) {
   const ahora = Date.now();
   const objeto = {
+    claveSincronizacion: crypto.randomUUID(),
     nombre: nombre.trim(),
     categoria,
     ubicacion: ubicacion.trim(),
@@ -206,6 +231,110 @@ export function marcarRecordatorioNotificado(id) {
 /** DELETE: elimina un objeto. */
 export function eliminarObjeto(id) {
   return ejecutar('readwrite', (almacen) => almacen.delete(id));
+}
+
+/** Fusiona la copia del servidor sin borrar datos locales más nuevos. */
+export async function fusionarObjetosRemotos(objetosRemotos = []) {
+  const db = await abrirDB();
+  const locales = await ejecutar('readonly', (almacen) => almacen.getAll());
+  const porClave = new Map(
+    locales
+      .filter((objeto) => objeto.claveSincronizacion)
+      .map((objeto) => [objeto.claveSincronizacion, objeto])
+  );
+
+  return new Promise((resolve, reject) => {
+    const transaccion = db.transaction(STORE, 'readwrite');
+    const almacen = transaccion.objectStore(STORE);
+
+    for (const remoto of objetosRemotos) {
+      if (!remoto?.claveSincronizacion) continue;
+      const local = porClave.get(remoto.claveSincronizacion);
+      if (!local || (remoto.actualizadoEn || 0) > (local.actualizadoEn || 0)) {
+        almacen.put({
+          ...remoto,
+          id: local?.id ?? remoto.id,
+          foto: local?.foto ?? null,
+        });
+      }
+    }
+
+    transaccion.oncomplete = () => resolve();
+    transaccion.onerror = () => reject(transaccion.error);
+    transaccion.onabort = () => reject(transaccion.error);
+  });
+}
+
+/** Registra una muestra inicial solo la primera vez que la base está vacía. */
+export async function inicializarDatosDemostracion() {
+  const db = await abrirDB();
+  if (!db.objectStoreNames.contains('configuracion')) return;
+
+  const ahora = Date.now();
+  const antiguedad = (horas) => ahora - (horas * 60 * 60 * 1000);
+  const muestras = [
+    ['demostracion-pasaporte', 'Pasaporte', 'Documentos', 'Portafolio azul del cajón superior', 'Se guarda junto con otros documentos de viaje.'],
+    ['demostracion-celular', 'Celular', 'Electrónica', 'Mesa de noche', 'Cargador incluido en el soporte lateral.'],
+    ['demostracion-llaves-casa', 'Llaves de la casa', 'Llaves', 'Bandeja junto a la puerta', 'Incluye llave principal y llavero rojo.'],
+    ['demostracion-audifonos', 'Audífonos', 'Electrónica', 'Bolso pequeño de trabajo', 'Se guardan en su estuche negro.'],
+    ['demostracion-carnet', 'Carné estudiantil', 'Documentos', 'Bolso de clase', 'Se usa para ingreso y préstamo de equipos.'],
+    ['demostracion-chaqueta', 'Chaqueta azul', 'Ropa', 'Perchero del dormitorio', 'Guardada en el bolsillo interior derecho.'],
+    ['demostracion-cargador', 'Cargador portátil', 'Accesorios', 'Compartimiento de la maleta', 'Se lleva para viajes y jornadas largas.'],
+    ['demostracion-usb', 'Memoria USB', 'Electrónica', 'Cajón del escritorio', 'Etiqueta verde con respaldo del proyecto.'],
+  ];
+
+  return new Promise((resolve, reject) => {
+    const transaccion = db.transaction([STORE, 'configuracion'], 'readwrite');
+    const almacenObjetos = transaccion.objectStore(STORE);
+    const almacenConfiguracion = transaccion.objectStore('configuracion');
+    const marcador = almacenConfiguracion.get('datos-demostracion-inicializados');
+    const conteo = almacenObjetos.count();
+
+    marcador.onsuccess = () => {
+      if (marcador.result) return;
+
+      conteo.onsuccess = () => {
+        if (conteo.result !== 0) {
+          almacenConfiguracion.put({
+            clave: 'datos-demostracion-inicializados',
+            valor: true,
+            fecha: ahora,
+          });
+          return;
+        }
+
+        muestras.forEach((muestra, indice) => {
+          const [claveSincronizacion, nombre, categoria, ubicacion, notas] = muestra;
+          const actualizadoEn = antiguedad((indice + 1) * 3);
+          const creadoEn = antiguedad((indice + 1) * 24);
+          almacenObjetos.add({
+            claveSincronizacion,
+            nombre,
+            categoria,
+            ubicacion,
+            notas,
+            coordenadas: null,
+            foto: null,
+            historial: [{ ubicacion, fecha: creadoEn, coordenadas: null }],
+            recordatorio: null,
+            recordatorioNotificado: false,
+            creadoEn,
+            actualizadoEn,
+          });
+        });
+
+        almacenConfiguracion.put({
+          clave: 'datos-demostracion-inicializados',
+          valor: true,
+          fecha: ahora,
+        });
+      };
+    };
+
+    transaccion.oncomplete = () => resolve();
+    transaccion.onerror = () => reject(transaccion.error);
+    transaccion.onabort = () => reject(transaccion.error);
+  });
 }
 
 /* ----------------------------- Búsqueda ----------------------------- */

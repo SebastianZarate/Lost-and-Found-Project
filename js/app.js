@@ -10,7 +10,8 @@ import { CATEGORIAS, TODAS, INTERVALO_RECORDATORIOS_MS } from './constants.js';
 import {
   abrirDB,
   crearObjeto, listarObjetos, obtenerObjeto, editarObjeto, moverObjeto,
-  eliminarObjeto, filtrarObjetos, marcarRecordatorioNotificado,
+  eliminarObjeto, filtrarObjetos, marcarRecordatorioNotificado, fusionarObjetosRemotos,
+  inicializarDatosDemostracion,
 } from './db.js';
 import { el, formatearFecha, tiempoRelativo, aValorDatetimeLocal } from './utils.js';
 import { redimensionarImagen } from './imagen.js';
@@ -29,6 +30,7 @@ import {
   encolarCambio,
   pedirSincronizacion,
   contarCambiosPendientes,
+  obtenerObjetosServidor,
 } from './sync.js';
 import { registrarServiceWorker } from './pwa.js';
 import {
@@ -362,11 +364,12 @@ async function guardarFormulario(evento) {
 
   ui.formGuardar.disabled = true;
   try {
+    let objetoGuardado;
     if (estado.editandoId != null) {
-      await editarObjeto(estado.editandoId, datos);
+      objetoGuardado = await editarObjeto(estado.editandoId, datos);
       avisar('Cambios guardados');
     } else {
-      await crearObjeto(datos);
+      objetoGuardado = await crearObjeto(datos);
       avisar('Objeto registrado');
     }
 
@@ -374,11 +377,8 @@ async function guardarFormulario(evento) {
     try {
       const db = await abrirDB();
       await encolarCambio(db, 'guardar-objeto', {
-        nombre: datos.nombre,
-        categoria: datos.categoria,
-        ubicacion: datos.ubicacion,
-        notas: datos.notas,
-        actualizadoEn: Date.now(),
+        ...objetoGuardado,
+        foto: null,
       });
       await actualizarEstadoSync();
       await pedirSincronizacion(db);
@@ -533,16 +533,15 @@ async function moverDesdeDetalle(evento) {
   evento.preventDefault();
   const nueva = ui.inputMover.value.trim();
   if (!nueva || estado.detalleId == null) return;
-  await moverObjeto(estado.detalleId, nueva);
+  const objetoMovido = await moverObjeto(estado.detalleId, nueva);
   avisar('Ubicación actualizada');
 
   // Sesión 26: Encolar en outbox cambio de ubicación
   try {
     const db = await abrirDB();
     await encolarCambio(db, 'mover-objeto', {
-      id: estado.detalleId,
-      nuevaUbicacion: nueva,
-      actualizadoEn: Date.now(),
+      ...objetoMovido,
+      foto: null,
     });
     await actualizarEstadoSync();
     await pedirSincronizacion(db);
@@ -560,6 +559,18 @@ async function eliminarDesdeDetalle() {
   const objeto = estado.objetos.find((o) => o.id === estado.detalleId);
   if (!window.confirm(`¿Eliminar "${objeto?.nombre ?? 'este objeto'}"? Esta acción no se puede deshacer.`)) return;
   await eliminarObjeto(estado.detalleId);
+  if (objeto?.claveSincronizacion) {
+    try {
+      const db = await abrirDB();
+      await encolarCambio(db, 'eliminar-objeto', {
+        claveSincronizacion: objeto.claveSincronizacion,
+        actualizadoEn: Date.now(),
+      });
+      await pedirSincronizacion(db);
+    } catch (errSync) {
+      console.warn('Eliminación pendiente en outbox:', errSync.message);
+    }
+  }
   ui.dlgDetalle.close();
   avisar('Objeto eliminado');
   await recargar();
@@ -629,6 +640,9 @@ function conectarEventos() {
     try {
       const db = await abrirDB();
       await pedirSincronizacion(db);
+      const objetosRemotos = await obtenerObjetosServidor();
+      await fusionarObjetosRemotos(objetosRemotos);
+      await recargar();
     } catch (e) {
       console.warn('Fallo sync al volver online:', e);
     }
@@ -814,7 +828,20 @@ async function iniciar() {
   conectarEventos();
 
   try {
+    await inicializarDatosDemostracion();
     await recargar();
+    if (navigator.onLine) {
+      try {
+        const objetosRemotos = await obtenerObjetosServidor();
+        await fusionarObjetosRemotos(objetosRemotos);
+        await recargar();
+        const db = await abrirDB();
+        await pedirSincronizacion(db);
+        await recargar();
+      } catch (error) {
+        console.warn('No se pudo sincronizar con SQLite:', error);
+      }
+    }
   } catch (error) {
     console.error('No se pudo abrir IndexedDB', error);
     avisar('No se pudo acceder al almacenamiento local.');

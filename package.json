@@ -10,6 +10,7 @@
     "build:sw": "npx workbox-cli injectManifest workbox-config.cjs"
   },
   "dependencies": {
+    "better-sqlite3": "^12.4.1",
     "web-push": "^3.6.7"
   },
   "keywords": [
