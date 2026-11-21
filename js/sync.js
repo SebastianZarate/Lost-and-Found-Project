@@ -7,6 +7,27 @@
 
 export const ETIQUETA_SYNC = "sync-objetos";
 const URL_OBJETOS = new URL("../api/objetos", import.meta.url);
+let servidorDisponibleCache = null;
+
+export async function hayServidorSQLite() {
+  if (servidorDisponibleCache !== null) return servidorDisponibleCache;
+
+  try {
+    const resp = await fetch(URL_OBJETOS, { headers: { Accept: "application/json" } });
+    servidorDisponibleCache = resp.ok;
+  } catch {
+    servidorDisponibleCache = false;
+  }
+  return servidorDisponibleCache;
+}
+
+export async function limpiarCambiosPendientes(db) {
+  const pendientes = await obtenerCambiosPendientes(db);
+  for (const cambio of pendientes) {
+    await eliminarCambioOutbox(db, cambio.idCambio);
+  }
+  return pendientes.length;
+}
 
 /** Comprueba si el navegador soporta Background Synchronization. */
 export function haySyncEnSegundoPlano() {
@@ -92,6 +113,11 @@ export async function vaciarDesdeLaPagina(db) {
  * Solicita la sincronización al navegador (Background Sync) o ejecuta Plan B.
  */
 export async function pedirSincronizacion(db) {
+  if (!(await hayServidorSQLite())) {
+    await limpiarCambiosPendientes(db);
+    return "sin-servidor";
+  }
+
   if (haySyncEnSegundoPlano()) {
     try {
       const reg = await navigator.serviceWorker.ready;

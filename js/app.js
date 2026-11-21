@@ -31,6 +31,7 @@ import {
   pedirSincronizacion,
   contarCambiosPendientes,
   obtenerObjetosServidor,
+  hayServidorSQLite,
 } from './sync.js';
 import { registrarServiceWorker } from './pwa.js';
 import {
@@ -640,9 +641,11 @@ function conectarEventos() {
     try {
       const db = await abrirDB();
       await pedirSincronizacion(db);
-      const objetosRemotos = await obtenerObjetosServidor();
-      await fusionarObjetosRemotos(objetosRemotos);
-      await recargar();
+      if (await hayServidorSQLite()) {
+        const objetosRemotos = await obtenerObjetosServidor();
+        await fusionarObjetosRemotos(objetosRemotos);
+        await recargar();
+      }
     } catch (e) {
       console.warn('Fallo sync al volver online:', e);
     }
@@ -770,6 +773,11 @@ function conectarEventos() {
 async function actualizarEstadoSync() {
   if (!ui.estadoSync) return;
   try {
+    if (!(await hayServidorSQLite())) {
+      ui.estadoSync.textContent = 'Datos guardados en este dispositivo';
+      ui.estadoSync.classList.remove('pendiente');
+      return;
+    }
     const db = await abrirDB();
     const pendientes = await contarCambiosPendientes(db);
     if (pendientes === 0) {
@@ -832,12 +840,15 @@ async function iniciar() {
     await recargar();
     if (navigator.onLine) {
       try {
-        const objetosRemotos = await obtenerObjetosServidor();
-        await fusionarObjetosRemotos(objetosRemotos);
-        await recargar();
         const db = await abrirDB();
         await pedirSincronizacion(db);
-        await recargar();
+        if (await hayServidorSQLite()) {
+          const objetosRemotos = await obtenerObjetosServidor();
+          await fusionarObjetosRemotos(objetosRemotos);
+          await recargar();
+          await pedirSincronizacion(db);
+          await recargar();
+        }
       } catch (error) {
         console.warn('No se pudo sincronizar con SQLite:', error);
       }

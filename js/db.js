@@ -287,49 +287,37 @@ export async function inicializarDatosDemostracion() {
     const transaccion = db.transaction([STORE, 'configuracion'], 'readwrite');
     const almacenObjetos = transaccion.objectStore(STORE);
     const almacenConfiguracion = transaccion.objectStore('configuracion');
-    const marcador = almacenConfiguracion.get('datos-demostracion-inicializados');
-    const conteo = almacenObjetos.count();
 
-    marcador.onsuccess = () => {
-      if (marcador.result) return;
+    muestras.forEach((muestra, indice) => {
+      const [claveSincronizacion, nombre, categoria, ubicacion, notas] = muestra;
+      const existente = almacenObjetos.index('claveSincronizacion').get(claveSincronizacion);
+      existente.onsuccess = () => {
+        if (existente.result) return;
 
-      conteo.onsuccess = () => {
-        if (conteo.result !== 0) {
-          almacenConfiguracion.put({
-            clave: 'datos-demostracion-inicializados',
-            valor: true,
-            fecha: ahora,
-          });
-          return;
-        }
-
-        muestras.forEach((muestra, indice) => {
-          const [claveSincronizacion, nombre, categoria, ubicacion, notas] = muestra;
-          const actualizadoEn = antiguedad((indice + 1) * 3);
-          const creadoEn = antiguedad((indice + 1) * 24);
-          almacenObjetos.add({
-            claveSincronizacion,
-            nombre,
-            categoria,
-            ubicacion,
-            notas,
-            coordenadas: null,
-            foto: null,
-            historial: [{ ubicacion, fecha: creadoEn, coordenadas: null }],
-            recordatorio: null,
-            recordatorioNotificado: false,
-            creadoEn,
-            actualizadoEn,
-          });
-        });
-
-        almacenConfiguracion.put({
-          clave: 'datos-demostracion-inicializados',
-          valor: true,
-          fecha: ahora,
+        const actualizadoEn = antiguedad((indice + 1) * 3);
+        const creadoEn = antiguedad((indice + 1) * 24);
+        almacenObjetos.add({
+          claveSincronizacion,
+          nombre,
+          categoria,
+          ubicacion,
+          notas,
+          coordenadas: null,
+          foto: null,
+          historial: [{ ubicacion, fecha: creadoEn, coordenadas: null }],
+          recordatorio: null,
+          recordatorioNotificado: false,
+          creadoEn,
+          actualizadoEn,
         });
       };
-    };
+    });
+
+    almacenConfiguracion.put({
+      clave: 'datos-demostracion-inicializados',
+      valor: true,
+      fecha: ahora,
+    });
 
     transaccion.oncomplete = () => resolve();
     transaccion.onerror = () => reject(transaccion.error);
