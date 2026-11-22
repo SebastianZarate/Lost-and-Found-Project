@@ -179,7 +179,10 @@ const servidor = createServer(async (solicitud, respuesta) => {
   }
 
   try {
-    const relativa = normalize(ruta === '/' ? 'index.html' : ruta.slice(1));
+    let relativa = normalize(ruta === '/' ? 'index.html' : ruta.slice(1));
+    if (ruta === '/app' || ruta === '/app/') {
+      relativa = 'app/index.html';
+    }
     const archivo = resolve(join(raiz, relativa));
 
     if (relative(raiz, archivo).startsWith('..')) {
@@ -188,7 +191,10 @@ const servidor = createServer(async (solicitud, respuesta) => {
 
     const contenido = await readFile(archivo);
     respuesta.writeHead(200, {
-      'Cache-Control': relativa.endsWith('.html') || relativa.endsWith('.js') ? 'no-cache' : 'max-age=3600',
+      'Cache-Control': relativa.endsWith('.html') || relativa.endsWith('.js') ||
+        relativa.endsWith('manifest.json')
+        ? 'no-cache'
+        : 'max-age=3600',
       'Content-Type': tipos[extname(archivo).toLowerCase()] || 'application/octet-stream',
     });
     if (solicitud.method === 'HEAD') respuesta.end();

@@ -6,7 +6,10 @@
  */
 
 export const ETIQUETA_SYNC = "sync-objetos";
-const URL_OBJETOS = new URL("../api/objetos", import.meta.url);
+const URL_OBJETOS = new URL(
+  "/api/objetos",
+  typeof window !== "undefined" ? window.location.origin : "http://localhost"
+);
 let servidorDisponibleCache = null;
 
 export async function hayServidorSQLite() {
@@ -22,11 +25,7 @@ export async function hayServidorSQLite() {
 }
 
 export async function limpiarCambiosPendientes(db) {
-  const pendientes = await obtenerCambiosPendientes(db);
-  for (const cambio of pendientes) {
-    await eliminarCambioOutbox(db, cambio.idCambio);
-  }
-  return pendientes.length;
+  return obtenerCambiosPendientes(db).then((pendientes) => pendientes.length);
 }
 
 /** Comprueba si el navegador soporta Background Synchronization. */

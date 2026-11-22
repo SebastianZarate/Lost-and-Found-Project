@@ -8,7 +8,8 @@ module.exports = {
     'vendor/leaflet/*.js',
     'vendor/leaflet/*.css',
     'vendor/leaflet/images/*',
-    'icons/*.png'
+    'icons/*.png',
+    'app/**/*'
   ],
   globIgnores: [
     'node_modules/**/*',
