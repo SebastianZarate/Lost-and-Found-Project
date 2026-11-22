@@ -16,7 +16,7 @@
 - Cada archivo tiene una responsabilidad: `app.js` (UI/estado), `db.js` (datos), `notificaciones.js`, `imagen.js`, `utils.js`, `constants.js`.
 - `sw.js` implementa la caché versionada del Atlas 3D y `js/pwa.js` registra el Service Worker.
 - Mantener funciones pequeñas y comentadas con el "por qué", no el "qué".
-- Accesibilidad: `label` en campos, foco visible, `aria-live` para avisos, respetar `prefers-reduced-motion`.
+- Accesibilidad: `label` en campos, foco   visible, `aria-live` para avisos, respetar `prefers-reduced-motion`.
 
 ## Modelo de datos (almacén `objetos`)
 `id, nombre, categoria, ubicacion, notas, foto (Blob|null), historial[{ubicacion,fecha}], recordatorio, recordatorioNotificado, creadoEn, actualizadoEn`.

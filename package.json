@@ -7,11 +7,26 @@
   "scripts": {
     "start": "node js/servidor.js",
     "start:python": "python -m http.server 5505",
+    "dev": "vite --config src-app/vite.config.js",
+    "build": "vite build --config src-app/vite.config.js",
+    "build:app": "vite build --config src-app/vite.config.js",
+    "test": "vitest run --config src-app/vite.config.js",
+    "preview": "vite preview --config src-app/vite.config.js",
     "build:sw": "npx workbox-cli injectManifest workbox-config.cjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.4.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
     "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@vitejs/plugin-react": "^5.0.2",
+    "jsdom": "^26.1.0",
+    "vite": "^7.1.3",
+    "vitest": "^3.2.4"
   },
   "keywords": [
     "indexeddb",
